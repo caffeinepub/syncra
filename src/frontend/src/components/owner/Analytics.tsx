@@ -4,10 +4,12 @@ import { format, isThisMonth, isThisYear, isToday } from "date-fns";
 import { Clock, IndianRupee, Receipt, TrendingUp } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
+import type { BillToken, SalesmanActivityLog } from "../../backend.d";
 import { useAppContext } from "../../context/AppContext";
 import {
   useActivityLogs,
   useBillsForBusiness,
+  useGetUserById,
   useTotalBillsCount,
   useTotalSales,
 } from "../../hooks/useQueries";
@@ -95,10 +97,18 @@ export function Analytics() {
       <Tabs defaultValue="bills" className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <TabsList className="bg-muted/50 h-8">
-            <TabsTrigger value="bills" className="text-xs h-6">
+            <TabsTrigger
+              value="bills"
+              className="text-xs h-6"
+              data-ocid="analytics.bills.tab"
+            >
               Bill History
             </TabsTrigger>
-            <TabsTrigger value="activity" className="text-xs h-6">
+            <TabsTrigger
+              value="activity"
+              className="text-xs h-6"
+              data-ocid="analytics.activity.tab"
+            >
               Activity Log
             </TabsTrigger>
           </TabsList>
@@ -123,6 +133,7 @@ export function Analytics() {
                       }
                     : {}
                 }
+                data-ocid={`analytics.${f}.toggle`}
               >
                 {f === "today" ? "Today" : f === "month" ? "Month" : "Year"}
               </button>
@@ -130,6 +141,7 @@ export function Analytics() {
           </div>
         </div>
 
+        {/* ─── Bill History Tab ─── */}
         <TabsContent value="bills">
           {billHistoryLoading ? (
             <div className="space-y-2">
@@ -138,7 +150,10 @@ export function Analytics() {
               ))}
             </div>
           ) : filteredBills.length === 0 ? (
-            <EmptyState label="No bills in this period" />
+            <EmptyState
+              label="No bills in this period"
+              data-ocid="analytics.bills.empty_state"
+            />
           ) : (
             <ScrollArea className="h-[400px]">
               <div className="space-y-2 pr-2">
@@ -148,31 +163,8 @@ export function Analytics() {
                     initial={{ opacity: 0, x: -8 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.03 }}
-                    className="glass-card rounded-xl p-3 flex items-center justify-between gap-4"
                   >
-                    <div>
-                      <p className="font-mono text-xs text-muted-foreground mb-1">
-                        #{bill.id.toString().slice(-8).padStart(8, "0")}
-                      </p>
-                      <p className="text-sm font-medium">
-                        ₹
-                        {Math.round(
-                          Number(bill.totalAmount / BigInt(100)),
-                        ).toLocaleString("en-IN")}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {format(
-                          new Date(Number(bill.createdAt / BigInt(1_000_000))),
-                          "MMM d, HH:mm",
-                        )}
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <BillStatusBadge status={bill.status} />
-                      <p className="text-xs text-muted-foreground">
-                        {bill.items.length} items
-                      </p>
-                    </div>
+                    <BillHistoryRow bill={bill} index={i + 1} />
                   </motion.div>
                 ))}
               </div>
@@ -180,6 +172,7 @@ export function Analytics() {
           )}
         </TabsContent>
 
+        {/* ─── Activity Log Tab ─── */}
         <TabsContent value="activity">
           {logsLoading ? (
             <div className="space-y-2">
@@ -188,7 +181,10 @@ export function Analytics() {
               ))}
             </div>
           ) : (logs ?? []).length === 0 ? (
-            <EmptyState label="No activity logs yet" />
+            <EmptyState
+              label="No activity logs yet"
+              data-ocid="analytics.activity.empty_state"
+            />
           ) : (
             <ScrollArea className="h-[400px]">
               <div className="space-y-2 pr-2">
@@ -201,24 +197,8 @@ export function Analytics() {
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.02 }}
-                      className="glass-card rounded-xl p-3"
                     >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium">{log.action}</p>
-                          {log.metadata && (
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {log.metadata}
-                            </p>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground shrink-0">
-                          {format(
-                            new Date(Number(log.timestamp / BigInt(1_000_000))),
-                            "HH:mm",
-                          )}
-                        </p>
-                      </div>
+                      <ActivityLogRow log={log} index={i + 1} />
                     </motion.div>
                   ))}
               </div>
@@ -226,6 +206,136 @@ export function Analytics() {
           )}
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// ─── Inner component: bill history row with salesman name ──────────────────
+
+function BillHistoryRow({
+  bill,
+  index,
+}: {
+  bill: BillToken;
+  index: number;
+}) {
+  const { data: salesman } = useGetUserById(bill.salesmanId);
+  const salesmanName = salesman?.name ?? "Unknown";
+  const initials = salesmanName
+    .split(" ")
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .slice(0, 2)
+    .join("");
+
+  return (
+    <div
+      className="glass-card rounded-xl p-3 flex items-center justify-between gap-4"
+      data-ocid={`analytics.bill.item.${index}`}
+    >
+      <div className="flex-1 min-w-0">
+        <p className="font-mono text-xs text-muted-foreground mb-1">
+          #{bill.id.toString().slice(-8).padStart(8, "0")}
+        </p>
+        <p className="text-sm font-bold">
+          ₹
+          {Math.round(Number(bill.totalAmount / BigInt(100))).toLocaleString(
+            "en-IN",
+          )}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {format(
+            new Date(Number(bill.createdAt / BigInt(1_000_000))),
+            "MMM d, HH:mm",
+          )}
+        </p>
+
+        {/* Salesman attribution */}
+        <div className="flex items-center gap-1.5 mt-1.5">
+          <span
+            className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[9px] font-bold shrink-0"
+            style={{
+              background: "oklch(0.72 0.14 195 / 0.25)",
+              color: "oklch(0.72 0.14 195)",
+            }}
+          >
+            {initials}
+          </span>
+          <span
+            className="text-xs font-medium"
+            style={{ color: "oklch(0.72 0.14 195)" }}
+          >
+            {salesmanName}
+          </span>
+        </div>
+      </div>
+      <div className="flex flex-col items-end gap-1 shrink-0">
+        <BillStatusBadge status={bill.status} />
+        <p className="text-xs text-muted-foreground">
+          {bill.items.length} items
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Inner component: activity log row with salesman avatar + name ──────────
+
+function ActivityLogRow({
+  log,
+  index,
+}: {
+  log: SalesmanActivityLog;
+  index: number;
+}) {
+  const { data: salesman } = useGetUserById(log.salesmanId);
+  const salesmanName = salesman?.name ?? "Unknown salesman";
+  const initials = salesmanName
+    .split(" ")
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .slice(0, 2)
+    .join("");
+
+  return (
+    <div
+      className="glass-card rounded-xl p-3"
+      data-ocid={`analytics.activity.item.${index}`}
+    >
+      <div className="flex items-start gap-3">
+        {/* Avatar with initials */}
+        <div
+          className="flex-shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full text-xs font-bold"
+          style={{
+            background: "oklch(0.72 0.14 195 / 0.18)",
+            color: "oklch(0.72 0.14 195)",
+            border: "1px solid oklch(0.72 0.14 195 / 0.3)",
+          }}
+        >
+          {initials}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          {/* Salesman name label */}
+          <p
+            className="text-xs font-semibold mb-0.5"
+            style={{ color: "oklch(0.72 0.14 195)" }}
+          >
+            {salesmanName}
+          </p>
+          {/* Action */}
+          <p className="text-sm font-medium text-foreground">{log.action}</p>
+          {log.metadata && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {log.metadata}
+            </p>
+          )}
+        </div>
+
+        {/* Timestamp */}
+        <p className="text-xs text-muted-foreground shrink-0 pt-0.5">
+          {format(new Date(Number(log.timestamp / BigInt(1_000_000))), "HH:mm")}
+        </p>
+      </div>
     </div>
   );
 }
@@ -261,9 +371,18 @@ function StatCard({
   );
 }
 
-function EmptyState({ label }: { label: string }) {
+function EmptyState({
+  label,
+  "data-ocid": dataOcid,
+}: {
+  label: string;
+  "data-ocid"?: string;
+}) {
   return (
-    <div className="glass-card rounded-xl p-10 text-center">
+    <div
+      className="glass-card rounded-xl p-10 text-center"
+      data-ocid={dataOcid}
+    >
       <p className="text-muted-foreground text-sm">{label}</p>
     </div>
   );
