@@ -46,8 +46,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (isInitializing && !authTimedOut) {
       authTimeoutRef.current = setTimeout(() => setAuthTimedOut(true), 3000);
     } else if (!isInitializing) {
+      // Clear the timer but do NOT reset authTimedOut — resetting it
+      // causes the timer to fire again on the next isInitializing flicker.
       if (authTimeoutRef.current) clearTimeout(authTimeoutRef.current);
-      setAuthTimedOut(false);
     }
     return () => {
       if (authTimeoutRef.current) clearTimeout(authTimeoutRef.current);
@@ -69,6 +70,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Track if profile has ever loaded (to distinguish first-load from background refetch)
+  const profileEverLoadedRef = useRef(false);
+
   // Fetch user profile
   const {
     data: userProfile,
@@ -79,8 +83,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     queryFn: async () => {
       if (!actor) return null;
       try {
-        return await actor.getCallerUserProfile();
+        const result = await actor.getCallerUserProfile();
+        profileEverLoadedRef.current = true;
+        return result;
       } catch {
+        profileEverLoadedRef.current = true;
         return null;
       }
     },
@@ -90,18 +97,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     retry: 1,
   });
 
+  // Suppress background-refetch flicker: only count as "loading" when it's
+  // the very first fetch (profileLoading=true means no cached data yet).
+  const profileIsFirstLoading = profileLoading && !profileEverLoadedRef.current;
+
+  // bigint 0n is falsy — use explicit null/undefined check
+  const businessId = userProfile?.businessId;
+  const hasBusinessId = businessId !== undefined && businessId !== null;
+
   // Fetch business data
   const { data: business } = useQuery<Business | null>({
-    queryKey: ["business", userProfile?.businessId?.toString()],
+    queryKey: ["business", businessId?.toString()],
     queryFn: async () => {
-      if (!actor || !userProfile?.businessId) return null;
+      if (!actor || !hasBusinessId) return null;
       try {
-        return await actor.getBusiness(userProfile.businessId);
+        return await actor.getBusiness(businessId);
       } catch {
         return null;
       }
     },
-    enabled: !!actor && !!userProfile?.businessId,
+    enabled: !!actor && hasBusinessId,
     staleTime: 30_000,
     retry: 1,
   });
@@ -115,36 +130,57 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [identity, identityStable, queryClient]);
 
+  // Track whether we've successfully resolved the profile at least once
+  const profileResolvedRef = useRef(false);
+  // Track last routed view to avoid redundant setView calls
+  const lastRoutedViewRef = useRef<string | null>(null);
+
   // Determine view based on auth + profile state
   useEffect(() => {
     if (!identity) return;
     if (!identityStable) return;
-    // Still fetching actor or profile — wait
-    if (actorFetching || profileLoading) return;
+    // Still fetching actor or profile for the first time — wait
+    if (actorFetching || profileIsFirstLoading) return;
 
-    if (!userProfile) {
-      // Authenticated but no profile — stay on splash for role selection
-      setView("splash");
-      return;
+    if (userProfile) {
+      // Profile confirmed — mark resolved and navigate
+      profileResolvedRef.current = true;
+      localStorage.removeItem("syncra_role");
+      const targetView =
+        userProfile.role === "owner" ? "owner-dashboard" : "salesman-floor";
+      // Only call setView if we haven't already routed here — prevents re-render loops
+      if (lastRoutedViewRef.current !== targetView) {
+        lastRoutedViewRef.current = targetView;
+        setView(targetView);
+      }
+    } else if (!profileResolvedRef.current) {
+      // Profile query returned null and we've never resolved one —
+      // this is a genuinely new user. Stay on splash for role selection.
+      if (lastRoutedViewRef.current !== "splash") {
+        lastRoutedViewRef.current = "splash";
+        setView("splash");
+      }
     }
-
-    localStorage.removeItem("syncra_role");
-    if (userProfile.role === "owner") {
-      setView("owner-dashboard");
-    } else {
-      setView("salesman-floor");
-    }
-  }, [identity, identityStable, userProfile, profileLoading, actorFetching]);
+    // If profileResolvedRef.current is true but userProfile is transiently null
+    // (e.g., query re-fired), do NOT redirect back to splash.
+  }, [
+    identity,
+    identityStable,
+    userProfile,
+    profileIsFirstLoading,
+    actorFetching,
+  ]);
 
   const refetch = useCallback(() => {
     void refetchProfile();
     queryClient.invalidateQueries({ queryKey: ["business"] });
   }, [refetchProfile, queryClient]);
 
-  // Only show loading when identity is confirmed but we're still fetching data.
+  // Only show loading when identity is confirmed but we're still fetching data for the FIRST time.
+  // Background refetches (after profileEverLoadedRef is true) don't block the UI.
   // If auth is still initializing (but not timed out), show loading too — but never longer than 3s.
   const isLoadingProfile = identityStable
-    ? !!identity && (actorFetching || profileLoading)
+    ? !!identity && (actorFetching || profileIsFirstLoading)
     : true; // still in first-time auth init window
 
   return (

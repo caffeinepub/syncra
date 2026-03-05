@@ -64,8 +64,13 @@ export function SplashPage() {
     }
   };
 
-  // Auto-navigate only for authenticated NEW users (no profile) with a saved role
+  // Auto-navigate only for authenticated NEW users (no profile) with a saved role.
+  // Use a ref so this fires at most once per mount — prevents a re-render loop
+  // where AppContext routes to splash, which re-triggers this effect.
+  const autoNavigatedRef = useRef(false);
+
   useEffect(() => {
+    if (autoNavigatedRef.current) return;
     if (
       identity &&
       (authTimedOut || !isInitializing) &&
@@ -73,6 +78,7 @@ export function SplashPage() {
       selectedRole &&
       !userProfile
     ) {
+      autoNavigatedRef.current = true;
       if (selectedRole === "owner") {
         setView("owner-onboarding");
       } else if (selectedRole === "salesman") {

@@ -14,12 +14,17 @@ import { useActor } from "./useActor";
 
 // ─── Products ──────────────────────────────────────────────
 
+// bigint 0n is falsy in JS — use explicit null/undefined check instead of !!
+function isDefined<T>(v: T | undefined | null): v is T {
+  return v !== undefined && v !== null;
+}
+
 export function useProducts(businessId: bigint | undefined) {
   const { actor, isFetching } = useActor();
   return useQuery<Product[]>({
     queryKey: ["products", businessId?.toString()],
     queryFn: async () => {
-      if (!actor || !businessId) return [];
+      if (!actor || !isDefined(businessId)) return [];
       const products = await actor.getProductsForBusiness(businessId);
       // Cache to localStorage for offline
       localStorage.setItem(
@@ -28,9 +33,9 @@ export function useProducts(businessId: bigint | undefined) {
       );
       return products;
     },
-    enabled: !!actor && !isFetching && !!businessId,
+    enabled: !!actor && !isFetching && isDefined(businessId),
     placeholderData: () => {
-      if (!businessId) return [];
+      if (!isDefined(businessId)) return [];
       const cached = localStorage.getItem(`syncra_products_${businessId}`);
       if (cached) {
         try {
@@ -50,10 +55,10 @@ export function useProductVariants(productId: bigint | undefined) {
   return useQuery<ProductVariant[]>({
     queryKey: ["variants", productId?.toString()],
     queryFn: async () => {
-      if (!actor || !productId) return [];
+      if (!actor || !isDefined(productId)) return [];
       return actor.getVariantsForProduct(productId);
     },
-    enabled: !!actor && !isFetching && !!productId,
+    enabled: !!actor && !isFetching && isDefined(productId),
     staleTime: 10_000,
   });
 }
@@ -63,11 +68,11 @@ export function useGetUserById(userId: bigint | undefined) {
   return useQuery<UserProfile | null>({
     queryKey: ["user", userId?.toString()],
     queryFn: async () => {
-      if (!actor || !userId) return null;
+      if (!actor || !isDefined(userId)) return null;
       const result = await actor.getUserById(userId);
       return result ?? null;
     },
-    enabled: !!actor && !isFetching && !!userId,
+    enabled: !!actor && !isFetching && isDefined(userId),
     staleTime: 300_000, // names rarely change
   });
 }
@@ -250,10 +255,10 @@ export function usePendingBills(businessId: bigint | undefined) {
   return useQuery<BillToken[]>({
     queryKey: ["pendingBills", businessId?.toString()],
     queryFn: async () => {
-      if (!actor || !businessId) return [];
+      if (!actor || !isDefined(businessId)) return [];
       return actor.getPendingBills(businessId);
     },
-    enabled: !!actor && !isFetching && !!businessId,
+    enabled: !!actor && !isFetching && isDefined(businessId),
     refetchInterval: 10_000,
   });
 }
@@ -263,10 +268,10 @@ export function useBillsForBusiness(businessId: bigint | undefined) {
   return useQuery<BillToken[]>({
     queryKey: ["bills", businessId?.toString()],
     queryFn: async () => {
-      if (!actor || !businessId) return [];
+      if (!actor || !isDefined(businessId)) return [];
       return actor.getBillsForBusiness(businessId);
     },
-    enabled: !!actor && !isFetching && !!businessId,
+    enabled: !!actor && !isFetching && isDefined(businessId),
     staleTime: 30_000,
   });
 }
@@ -349,10 +354,10 @@ export function useTotalSales(businessId: bigint | undefined) {
   return useQuery<bigint>({
     queryKey: ["totalSales", businessId?.toString()],
     queryFn: async () => {
-      if (!actor || !businessId) return BigInt(0);
+      if (!actor || !isDefined(businessId)) return BigInt(0);
       return actor.getTotalSales(businessId);
     },
-    enabled: !!actor && !isFetching && !!businessId,
+    enabled: !!actor && !isFetching && isDefined(businessId),
     staleTime: 60_000,
   });
 }
@@ -362,10 +367,10 @@ export function useTotalBillsCount(businessId: bigint | undefined) {
   return useQuery<bigint>({
     queryKey: ["totalBillsCount", businessId?.toString()],
     queryFn: async () => {
-      if (!actor || !businessId) return BigInt(0);
+      if (!actor || !isDefined(businessId)) return BigInt(0);
       return actor.getTotalBillsCount(businessId);
     },
-    enabled: !!actor && !isFetching && !!businessId,
+    enabled: !!actor && !isFetching && isDefined(businessId),
     staleTime: 60_000,
   });
 }
@@ -375,10 +380,10 @@ export function useActivityLogs(businessId: bigint | undefined) {
   return useQuery<SalesmanActivityLog[]>({
     queryKey: ["activityLogs", businessId?.toString()],
     queryFn: async () => {
-      if (!actor || !businessId) return [];
+      if (!actor || !isDefined(businessId)) return [];
       return actor.getActivityLogs(businessId);
     },
-    enabled: !!actor && !isFetching && !!businessId,
+    enabled: !!actor && !isFetching && isDefined(businessId),
     staleTime: 60_000,
   });
 }
@@ -390,10 +395,10 @@ export function useInvites(businessId: bigint | undefined) {
   return useQuery<SalesmanInvite[]>({
     queryKey: ["invites", businessId?.toString()],
     queryFn: async () => {
-      if (!actor || !businessId) return [];
+      if (!actor || !isDefined(businessId)) return [];
       return actor.getInvitesForBusiness(businessId);
     },
-    enabled: !!actor && !isFetching && !!businessId,
+    enabled: !!actor && !isFetching && isDefined(businessId),
     staleTime: 30_000,
   });
 }
