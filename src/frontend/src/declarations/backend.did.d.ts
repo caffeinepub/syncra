@@ -163,6 +163,7 @@ export interface _SERVICE {
   'getTimeDiff' : ActorMethod<[Time, Time], bigint>,
   'getTotalBillsCount' : ActorMethod<[bigint], bigint>,
   'getTotalSales' : ActorMethod<[bigint], bigint>,
+  'getUserById' : ActorMethod<[bigint], [] | [UserProfile]>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'getVariantsForProduct' : ActorMethod<[bigint], Array<ProductVariant>>,
   'inviteSalesman' : ActorMethod<[bigint, string], bigint>,
@@ -176,16 +177,7 @@ export interface _SERVICE {
   'releaseVariantLock' : ActorMethod<[bigint], undefined>,
   'revokeInvite' : ActorMethod<[bigint], undefined>,
   'saveCallerUserProfile' : ActorMethod<
-    [
-      {
-        'businessId' : bigint,
-        'name' : string,
-        'role' : Role,
-        'isActive' : boolean,
-        'email' : string,
-        'phone' : string,
-      },
-    ],
+    [string, string, string, bigint, Role, boolean],
     undefined
   >,
   'updateSubscription' : ActorMethod<[bigint, SubscriptionStatus], undefined>,

@@ -219,6 +219,7 @@ export const idlService = IDL.Service({
   'getTimeDiff' : IDL.Func([Time, Time], [IDL.Int], ['query']),
   'getTotalBillsCount' : IDL.Func([IDL.Nat], [IDL.Nat], ['query']),
   'getTotalSales' : IDL.Func([IDL.Nat], [IDL.Nat], ['query']),
+  'getUserById' : IDL.Func([IDL.Nat], [IDL.Opt(UserProfile)], ['query']),
   'getUserProfile' : IDL.Func(
       [IDL.Principal],
       [IDL.Opt(UserProfile)],
@@ -241,16 +242,7 @@ export const idlService = IDL.Service({
   'releaseVariantLock' : IDL.Func([IDL.Nat], [], []),
   'revokeInvite' : IDL.Func([IDL.Nat], [], []),
   'saveCallerUserProfile' : IDL.Func(
-      [
-        IDL.Record({
-          'businessId' : IDL.Nat,
-          'name' : IDL.Text,
-          'role' : Role,
-          'isActive' : IDL.Bool,
-          'email' : IDL.Text,
-          'phone' : IDL.Text,
-        }),
-      ],
+      [IDL.Text, IDL.Text, IDL.Text, IDL.Nat, Role, IDL.Bool],
       [],
       [],
     ),
@@ -483,6 +475,7 @@ export const idlFactory = ({ IDL }) => {
     'getTimeDiff' : IDL.Func([Time, Time], [IDL.Int], ['query']),
     'getTotalBillsCount' : IDL.Func([IDL.Nat], [IDL.Nat], ['query']),
     'getTotalSales' : IDL.Func([IDL.Nat], [IDL.Nat], ['query']),
+    'getUserById' : IDL.Func([IDL.Nat], [IDL.Opt(UserProfile)], ['query']),
     'getUserProfile' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UserProfile)],
@@ -505,16 +498,7 @@ export const idlFactory = ({ IDL }) => {
     'releaseVariantLock' : IDL.Func([IDL.Nat], [], []),
     'revokeInvite' : IDL.Func([IDL.Nat], [], []),
     'saveCallerUserProfile' : IDL.Func(
-        [
-          IDL.Record({
-            'businessId' : IDL.Nat,
-            'name' : IDL.Text,
-            'role' : Role,
-            'isActive' : IDL.Bool,
-            'email' : IDL.Text,
-            'phone' : IDL.Text,
-          }),
-        ],
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Nat, Role, IDL.Bool],
         [],
         [],
       ),

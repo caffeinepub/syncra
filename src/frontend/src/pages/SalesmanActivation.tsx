@@ -75,14 +75,14 @@ export function SalesmanActivation() {
     }
     setIsSubmitting(true);
     try {
-      await actor.saveCallerUserProfile({
-        businessId: inviteBusinessId,
+      await actor.saveCallerUserProfile(
         name,
-        role: Role.salesman,
-        isActive: true,
-        email: contactInfo.includes("@") ? contactInfo : "",
-        phone: !contactInfo.includes("@") ? contactInfo : "",
-      });
+        contactInfo.includes("@") ? contactInfo : "",
+        !contactInfo.includes("@") ? contactInfo : "",
+        inviteBusinessId,
+        Role.salesman,
+        true,
+      );
       toast.success("Account activated! Welcome to Syncra.");
       refetchProfile();
       setView("salesman-floor");

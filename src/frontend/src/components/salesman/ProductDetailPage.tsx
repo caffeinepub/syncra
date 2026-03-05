@@ -8,8 +8,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -22,10 +22,16 @@ import {
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
-import type { ExternalBlob, Product, ProductVariant } from "../../backend.d";
+import { useEffect, useMemo, useState } from "react";
+import type {
+  ExternalBlob,
+  Product,
+  ProductVariant,
+  UserProfile,
+} from "../../backend.d";
 import { ProductState } from "../../backend.d";
 import { useAppContext } from "../../context/AppContext";
+import { useActor } from "../../hooks/useActor";
 import {
   useCreateBillToken,
   useLockVariant,
@@ -40,6 +46,7 @@ interface Props {
 
 export function ProductDetailPage({ product, onBack }: Props) {
   const { userProfile } = useAppContext();
+  const { actor } = useActor();
   const { data: variants, isLoading } = useProductVariants(product.id);
   const lockMutation = useLockVariant();
   const releaseMutation = useReleaseVariant();
@@ -59,10 +66,55 @@ export function ProductDetailPage({ product, onBack }: Props) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const myUserId = userProfile?.userId;
+  const qc = useQueryClient();
+
+  // Collect unique lockedBy userIds from variants (only for locks by others)
+  const otherLockerIds = useMemo(() => {
+    if (!variants) return [];
+    const ids = new Set<string>();
+    for (const v of variants) {
+      if (
+        v.state === ProductState.locked &&
+        v.lockedBy !== undefined &&
+        v.lockedBy !== null &&
+        v.lockedBy !== myUserId
+      ) {
+        ids.add(v.lockedBy.toString());
+      }
+    }
+    return Array.from(ids);
+  }, [variants, myUserId]);
+
+  // Fetch profiles for all lockers in parallel
+  const lockerQueries = useQueries({
+    queries: otherLockerIds.map((idStr) => ({
+      queryKey: ["user", idStr],
+      queryFn: async (): Promise<UserProfile | null> => {
+        if (!actor) return null;
+        const result = await actor.getUserById(BigInt(idStr));
+        return result ?? null;
+      },
+      enabled: !!actor,
+      staleTime: 300_000,
+    })),
+  });
+
+  // Build a map from userId string -> name
+  const lockerNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (let i = 0; i < otherLockerIds.length; i++) {
+      const profile = lockerQueries[i]?.data;
+      if (profile) {
+        map[otherLockerIds[i]] = profile.name;
+      }
+    }
+    return map;
+  }, [otherLockerIds, lockerQueries]);
 
   const handleVariantTap = async (variant: ProductVariant) => {
-    if (variant.state === ProductState.sold || variant.stockCount === BigInt(0))
-      return;
+    // Only block tap if truly out of stock (stockCount = 0)
+    // Don't block on state=sold because backend may set that incorrectly when stock > 0
+    if (variant.stockCount === BigInt(0)) return;
 
     const isMyLock =
       variant.state === ProductState.locked &&
@@ -74,7 +126,17 @@ export function ProductDetailPage({ product, onBack }: Props) {
       !(myUserId && variant.lockedBy === myUserId) &&
       !isMyLocalLock;
 
-    if (isOtherLock) return;
+    if (isOtherLock) {
+      const lockerName =
+        variant.lockedBy !== undefined && variant.lockedBy !== null
+          ? (lockerNameMap[variant.lockedBy.toString()] ?? "Another salesman")
+          : "Another salesman";
+      const { toast } = await import("sonner");
+      toast.warning(`${lockerName} is currently selling this variant.`, {
+        description: "It will become available if they release it.",
+      });
+      return;
+    }
 
     if (isMyLock || isMyLocalLock) {
       // Release lock
@@ -258,12 +320,20 @@ export function ProductDetailPage({ product, onBack }: Props) {
                     (variant.state === ProductState.locked &&
                       !!myUserId &&
                       variant.lockedBy === myUserId);
+                  const otherLockerName =
+                    !isMyLock &&
+                    variant.state === ProductState.locked &&
+                    variant.lockedBy !== undefined &&
+                    variant.lockedBy !== null
+                      ? (lockerNameMap[variant.lockedBy.toString()] ?? null)
+                      : null;
                   return (
                     <VariantTile
                       key={variant.id.toString()}
                       variant={variant}
                       isMyLock={isMyLock}
                       lockedQty={myQty}
+                      otherLockerName={otherLockerName}
                       onClick={() => void handleVariantTap(variant)}
                     />
                   );
@@ -364,11 +434,17 @@ export function ProductDetailPage({ product, onBack }: Props) {
                   const qty = lockQty;
                   setSelectedVariantForLock(null);
                   setLockQty(1);
-                  await lockMutation.mutateAsync(variantToLock.id);
-                  setLockedItems((prev) => ({
-                    ...prev,
-                    [variantToLock.id.toString()]: qty,
-                  }));
+                  try {
+                    await lockMutation.mutateAsync(variantToLock.id);
+                    setLockedItems((prev) => ({
+                      ...prev,
+                      [variantToLock.id.toString()]: qty,
+                    }));
+                  } catch {
+                    // error toast already shown by useLockVariant onError
+                    // refetch so UI reflects actual state
+                    void qc.invalidateQueries({ queryKey: ["variants"] });
+                  }
                 }}
                 disabled={lockMutation.isPending}
               >
@@ -596,18 +672,25 @@ function VariantTile({
   variant,
   isMyLock,
   lockedQty,
+  otherLockerName,
   onClick,
 }: {
   variant: ProductVariant;
   isMyLock: boolean;
   lockedQty?: number;
+  otherLockerName: string | null;
   onClick: () => void;
 }) {
+  // FIXED: base availability on stockCount, not just state
+  // The backend may incorrectly set state=#sold even when stockCount > 0
   const isOutOfStock = variant.stockCount === BigInt(0);
-  const isSold = variant.state === ProductState.sold;
+  // Only truly sold if backend says sold AND there's actually no stock left
+  const isSold =
+    variant.state === ProductState.sold && variant.stockCount === BigInt(0);
   const isLocked = variant.state === ProductState.locked;
   const isOtherLock = isLocked && !isMyLock;
-  const isAvailable = variant.state === ProductState.available && !isOutOfStock;
+  // Available = has stock AND (not locked by someone else) AND not truly sold AND not my lock
+  const isAvailable = !isOutOfStock && !isOtherLock && !isSold && !isMyLock;
   const isLowStock =
     isAvailable &&
     variant.stockCount > BigInt(0) &&
@@ -660,8 +743,8 @@ function VariantTile({
         </span>
       )}
       {isOtherLock && (
-        <span className="text-[9px] text-center leading-tight opacity-70">
-          Reserved
+        <span className="text-[9px] text-center leading-tight opacity-70 px-0.5">
+          {otherLockerName ? `${otherLockerName} selling` : "Reserved"}
         </span>
       )}
       {isSold && (

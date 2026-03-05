@@ -237,6 +237,7 @@ export interface backendInterface {
     getTimeDiff(time1: Time, time2: Time): Promise<bigint>;
     getTotalBillsCount(businessId: bigint): Promise<bigint>;
     getTotalSales(businessId: bigint): Promise<bigint>;
+    getUserById(userId: bigint): Promise<UserProfile | null>;
     getUserProfile(userPrincipal: Principal): Promise<UserProfile | null>;
     getVariantsForProduct(productId: bigint): Promise<Array<ProductVariant>>;
     inviteSalesman(businessId: bigint, contactInfo: string): Promise<bigint>;
@@ -246,14 +247,7 @@ export interface backendInterface {
     registerBusiness(name: string, businessType: BusinessType, subscriptionStatus: SubscriptionStatus, trialStartDate: bigint, trialEndDate: bigint): Promise<bigint>;
     releaseVariantLock(variantId: bigint): Promise<void>;
     revokeInvite(inviteId: bigint): Promise<void>;
-    saveCallerUserProfile(profile: {
-        businessId: bigint;
-        name: string;
-        role: Role;
-        isActive: boolean;
-        email: string;
-        phone: string;
-    }): Promise<void>;
+    saveCallerUserProfile(name: string, email: string, phone: string, businessId: bigint, role: Role, isActive: boolean): Promise<void>;
     updateSubscription(businessId: bigint, newStatus: SubscriptionStatus): Promise<void>;
 }
 import type { BillItem as _BillItem, BillStatus as _BillStatus, BillToken as _BillToken, Business as _Business, BusinessType as _BusinessType, ExternalBlob as _ExternalBlob, InviteStatus as _InviteStatus, Product as _Product, ProductState as _ProductState, ProductVariant as _ProductVariant, Role as _Role, SalesmanInvite as _SalesmanInvite, SubscriptionStatus as _SubscriptionStatus, UserProfile as _UserProfile, UserRole as _UserRole, _CaffeineStorageRefillInformation as __CaffeineStorageRefillInformation, _CaffeineStorageRefillResult as __CaffeineStorageRefillResult } from "./declarations/backend.did.d.ts";
@@ -707,6 +701,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getUserById(arg0: bigint): Promise<UserProfile | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getUserById(arg0);
+                return from_candid_opt_n37(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getUserById(arg0);
+            return from_candid_opt_n37(this._uploadFile, this._downloadFile, result);
+        }
+    }
     async getUserProfile(arg0: Principal): Promise<UserProfile | null> {
         if (this.processError) {
             try {
@@ -833,24 +841,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async saveCallerUserProfile(arg0: {
-        businessId: bigint;
-        name: string;
-        role: Role;
-        isActive: boolean;
-        email: string;
-        phone: string;
-    }): Promise<void> {
+    async saveCallerUserProfile(arg0: string, arg1: string, arg2: string, arg3: bigint, arg4: Role, arg5: boolean): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.saveCallerUserProfile(to_candid_record_n54(this._uploadFile, this._downloadFile, arg0));
+                const result = await this.actor.saveCallerUserProfile(arg0, arg1, arg2, arg3, to_candid_Role_n54(this._uploadFile, this._downloadFile, arg4), arg5);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.saveCallerUserProfile(to_candid_record_n54(this._uploadFile, this._downloadFile, arg0));
+            const result = await this.actor.saveCallerUserProfile(arg0, arg1, arg2, arg3, to_candid_Role_n54(this._uploadFile, this._downloadFile, arg4), arg5);
             return result;
         }
     }
@@ -1195,8 +1196,8 @@ async function to_candid_ExternalBlob_n9(_uploadFile: (file: ExternalBlob) => Pr
 function to_candid_ProductState_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: ProductState): _ProductState {
     return to_candid_variant_n11(_uploadFile, _downloadFile, value);
 }
-function to_candid_Role_n55(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Role): _Role {
-    return to_candid_variant_n56(_uploadFile, _downloadFile, value);
+function to_candid_Role_n54(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Role): _Role {
+    return to_candid_variant_n55(_uploadFile, _downloadFile, value);
 }
 function to_candid_SubscriptionStatus_n52(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: SubscriptionStatus): _SubscriptionStatus {
     return to_candid_variant_n53(_uploadFile, _downloadFile, value);
@@ -1217,30 +1218,6 @@ function to_candid_record_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8A
 } {
     return {
         proposed_top_up_amount: value.proposed_top_up_amount ? candid_some(value.proposed_top_up_amount) : candid_none()
-    };
-}
-function to_candid_record_n54(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
-    businessId: bigint;
-    name: string;
-    role: Role;
-    isActive: boolean;
-    email: string;
-    phone: string;
-}): {
-    businessId: bigint;
-    name: string;
-    role: _Role;
-    isActive: boolean;
-    email: string;
-    phone: string;
-} {
-    return {
-        businessId: value.businessId,
-        name: value.name,
-        role: to_candid_Role_n55(_uploadFile, _downloadFile, value.role),
-        isActive: value.isActive,
-        email: value.email,
-        phone: value.phone
     };
 }
 function to_candid_variant_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: ProductState): {
@@ -1311,7 +1288,7 @@ function to_candid_variant_n53(_uploadFile: (file: ExternalBlob) => Promise<Uint
         grace: null
     } : value;
 }
-function to_candid_variant_n56(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Role): {
+function to_candid_variant_n55(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Role): {
     salesman: null;
 } | {
     owner: null;

@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Building2, Loader2, UserCheck } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SyncraLogo } from "../components/shared/SyncraLogo";
 import { useAppContext } from "../context/AppContext";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
@@ -15,11 +15,25 @@ export function SplashPage() {
     useInternetIdentity();
   const { isLoadingProfile, setView, userProfile } = useAppContext();
   const [selectedRole, setSelectedRole] = useState<RoleChoice>(() => {
-    // Restore role hint from localStorage
     const saved = localStorage.getItem(ROLE_STORAGE_KEY);
     if (saved === "owner" || saved === "salesman") return saved;
     return null;
   });
+
+  // After 3s we stop blocking the button on isInitializing
+  const [authTimedOut, setAuthTimedOut] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (isInitializing && !authTimedOut) {
+      timerRef.current = setTimeout(() => setAuthTimedOut(true), 3000);
+    } else if (!isInitializing) {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    }
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [isInitializing, authTimedOut]);
 
   const handleRoleSelect = (role: RoleChoice) => {
     setSelectedRole(role);
@@ -33,32 +47,28 @@ export function SplashPage() {
   const handleConnect = () => {
     if (!identity) {
       login();
-    } else {
-      // Already authenticated
-      if (userProfile) {
-        // Returning user — go straight to their dashboard
-        if (userProfile.role === "owner") {
-          setView("owner-dashboard");
-        } else {
-          setView("salesman-floor");
-        }
+      return;
+    }
+    if (userProfile) {
+      if (userProfile.role === "owner") {
+        setView("owner-dashboard");
       } else {
-        // New user — go to onboarding/activation
-        if (selectedRole === "owner") {
-          setView("owner-onboarding");
-        } else if (selectedRole === "salesman") {
-          setView("salesman-activation");
-        }
+        setView("salesman-floor");
+      }
+    } else {
+      if (selectedRole === "owner") {
+        setView("owner-onboarding");
+      } else if (selectedRole === "salesman") {
+        setView("salesman-activation");
       }
     }
   };
 
-  // Auto-navigate only if authenticated but has NO profile yet (new user)
-  // Do NOT auto-navigate if userProfile already exists — AppContext handles routing for returning users
+  // Auto-navigate only for authenticated NEW users (no profile) with a saved role
   useEffect(() => {
     if (
       identity &&
-      !isInitializing &&
+      (authTimedOut || !isInitializing) &&
       !isLoadingProfile &&
       selectedRole &&
       !userProfile
@@ -72,13 +82,20 @@ export function SplashPage() {
   }, [
     identity,
     isInitializing,
+    authTimedOut,
     isLoadingProfile,
     selectedRole,
     userProfile,
     setView,
   ]);
 
-  const isLoading = isLoggingIn || isInitializing || isLoadingProfile;
+  // Show spinner while: actively logging in, OR during the first 3s of auth init,
+  // OR identity is confirmed but profile data is still loading.
+  // Never block forever — authTimedOut breaks the cycle.
+  const isLoading =
+    isLoggingIn ||
+    (!authTimedOut && isInitializing) ||
+    (!!identity && isLoadingProfile);
 
   return (
     <div className="mesh-bg min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">

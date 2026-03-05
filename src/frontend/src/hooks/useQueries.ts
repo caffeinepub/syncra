@@ -7,6 +7,7 @@ import type {
   ProductVariant,
   SalesmanActivityLog,
   SalesmanInvite,
+  UserProfile,
 } from "../backend.d";
 import { BillStatus, ProductState } from "../backend.d";
 import { useActor } from "./useActor";
@@ -57,6 +58,20 @@ export function useProductVariants(productId: bigint | undefined) {
   });
 }
 
+export function useGetUserById(userId: bigint | undefined) {
+  const { actor, isFetching } = useActor();
+  return useQuery<UserProfile | null>({
+    queryKey: ["user", userId?.toString()],
+    queryFn: async () => {
+      if (!actor || !userId) return null;
+      const result = await actor.getUserById(userId);
+      return result ?? null;
+    },
+    enabled: !!actor && !isFetching && !!userId,
+    staleTime: 300_000, // names rarely change
+  });
+}
+
 export function useLockVariant() {
   const { actor } = useActor();
   const qc = useQueryClient();
@@ -68,8 +83,16 @@ export function useLockVariant() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["variants"] });
     },
-    onError: () => {
-      toast.error("Failed to lock variant");
+    onError: (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes("not available") || msg.includes("out of stock")) {
+        // Generic fallback — ProductDetailPage shows salesman name on the tile itself
+        toast.error(
+          "This item is currently being handled by another salesman.",
+        );
+      } else {
+        toast.error("Could not lock this item — try again");
+      }
     },
   });
 }
@@ -120,8 +143,11 @@ export function useAddProduct() {
       void qc.invalidateQueries({ queryKey: ["products"] });
       toast.success("Product added successfully");
     },
-    onError: () => {
-      toast.error("Failed to add product");
+    onError: (error) => {
+      console.error("addProduct error:", error);
+      toast.error(
+        `Failed to add product: ${error instanceof Error ? error.message : String(error)}`,
+      );
     },
   });
 }
@@ -155,8 +181,11 @@ export function useEditProduct() {
       void qc.invalidateQueries({ queryKey: ["products"] });
       toast.success("Product updated");
     },
-    onError: () => {
-      toast.error("Failed to update product");
+    onError: (error) => {
+      console.error("editProduct error:", error);
+      toast.error(
+        `Failed to update product: ${error instanceof Error ? error.message : String(error)}`,
+      );
     },
   });
 }
@@ -285,7 +314,7 @@ export function useFinalizeBill() {
       void qc.invalidateQueries({ queryKey: ["pendingBills"] });
       void qc.invalidateQueries({ queryKey: ["bills"] });
       void qc.invalidateQueries({ queryKey: ["variants"] });
-      toast.success("Bill finalized!");
+      toast.success("Payment confirmed! Stock updated.");
     },
     onError: () => {
       toast.error("Failed to finalize bill");
@@ -304,7 +333,8 @@ export function useCancelBill() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["pendingBills"] });
       void qc.invalidateQueries({ queryKey: ["bills"] });
-      toast.success("Bill cancelled");
+      void qc.invalidateQueries({ queryKey: ["variants"] });
+      toast.success("Bill cancelled — items are available again");
     },
     onError: () => {
       toast.error("Failed to cancel bill");

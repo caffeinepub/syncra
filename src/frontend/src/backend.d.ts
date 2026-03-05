@@ -144,6 +144,7 @@ export interface backendInterface {
     getTimeDiff(time1: Time, time2: Time): Promise<bigint>;
     getTotalBillsCount(businessId: bigint): Promise<bigint>;
     getTotalSales(businessId: bigint): Promise<bigint>;
+    getUserById(userId: bigint): Promise<UserProfile | null>;
     getUserProfile(userPrincipal: Principal): Promise<UserProfile | null>;
     getVariantsForProduct(productId: bigint): Promise<Array<ProductVariant>>;
     inviteSalesman(businessId: bigint, contactInfo: string): Promise<bigint>;
@@ -153,13 +154,6 @@ export interface backendInterface {
     registerBusiness(name: string, businessType: BusinessType, subscriptionStatus: SubscriptionStatus, trialStartDate: bigint, trialEndDate: bigint): Promise<bigint>;
     releaseVariantLock(variantId: bigint): Promise<void>;
     revokeInvite(inviteId: bigint): Promise<void>;
-    saveCallerUserProfile(profile: {
-        businessId: bigint;
-        name: string;
-        role: Role;
-        isActive: boolean;
-        email: string;
-        phone: string;
-    }): Promise<void>;
+    saveCallerUserProfile(name: string, email: string, phone: string, businessId: bigint, role: Role, isActive: boolean): Promise<void>;
     updateSubscription(businessId: bigint, newStatus: SubscriptionStatus): Promise<void>;
 }

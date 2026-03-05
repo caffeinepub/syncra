@@ -1,9 +1,9 @@
 import { Toaster } from "@/components/ui/sonner";
 import { Loader2 } from "lucide-react";
 import { AnimatePresence } from "motion/react";
+import { useEffect, useState } from "react";
 import { SyncraLogo } from "./components/shared/SyncraLogo";
 import { AppProvider, useAppContext } from "./context/AppContext";
-import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { OwnerDashboard } from "./pages/OwnerDashboard";
 import { OwnerOnboarding } from "./pages/OwnerOnboarding";
 import { SalesmanActivation } from "./pages/SalesmanActivation";
@@ -12,10 +12,21 @@ import { SplashPage } from "./pages/SplashPage";
 
 function AppRoutes() {
   const { view, isLoadingProfile } = useAppContext();
-  const { isInitializing } = useInternetIdentity();
+  const [timedOut, setTimedOut] = useState(false);
 
-  // Global loading state
-  if (isInitializing || isLoadingProfile) {
+  // Safety timeout — if loading takes more than 4 seconds, show the app anyway
+  // This prevents permanent blocking due to auth hook re-initialization loops
+  useEffect(() => {
+    if (!isLoadingProfile) {
+      setTimedOut(false);
+      return;
+    }
+    const t = setTimeout(() => setTimedOut(true), 4000);
+    return () => clearTimeout(t);
+  }, [isLoadingProfile]);
+
+  // Global loading state — but never block forever
+  if (!timedOut && isLoadingProfile) {
     return (
       <div className="mesh-bg min-h-screen flex flex-col items-center justify-center gap-6">
         <SyncraLogo size="md" />

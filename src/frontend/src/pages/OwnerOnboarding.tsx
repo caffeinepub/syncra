@@ -116,14 +116,14 @@ export function OwnerOnboarding() {
         now,
         trialEnd,
       );
-      await actor.saveCallerUserProfile({
-        businessId,
-        name: ownerName,
-        role: Role.owner,
-        isActive: true,
+      await actor.saveCallerUserProfile(
+        ownerName,
         email,
         phone,
-      });
+        businessId,
+        Role.owner,
+        true,
+      );
       toast.success("Business registered! Welcome to Syncra.");
       refetchProfile();
       setView("owner-dashboard");

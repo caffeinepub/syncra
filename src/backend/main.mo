@@ -1,3 +1,4 @@
+// CONTAINS CANISTER SPECIFIC TYPES AND FILTER FOR EXTENSION PATTERN
 import Text "mo:core/Text";
 import Array "mo:core/Array";
 import Nat "mo:core/Nat";
@@ -7,11 +8,13 @@ import Order "mo:core/Order";
 import Principal "mo:core/Principal";
 import Iter "mo:core/Iter";
 import Runtime "mo:core/Runtime";
+import Migration "migration";
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 import Storage "blob-storage/Storage";
 import MixinStorage "blob-storage/Mixin";
 
+(with migration = Migration.run)
 actor {
   // =========================
   // Types/Modules/State
@@ -92,7 +95,7 @@ actor {
 
   public type SalesmanInvite = {
     id : Nat;
-    contactInfo : Text; // Email or phone
+    contactInfo : Text;
     businessId : Nat;
     status : InviteStatus;
     invitedAt : Int;
@@ -122,7 +125,7 @@ actor {
     variantName : Text;
     stockCount : Nat;
     state : ProductState;
-    lockedBy : ?Nat; // userId who locked it
+    lockedBy : ?Nat;
   };
 
   // Bill Types
@@ -182,7 +185,10 @@ actor {
     };
   };
 
-  // State Initialization
+  // =========================
+  // Persistent State
+  // =========================
+
   var nextBusinessId = 1;
   var nextUserId = 1;
   var nextProductId = 1;
@@ -204,9 +210,9 @@ actor {
   // Mixins
   // =========================
 
-  // Authorization
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
+  include MixinStorage();
 
   // =========================
   // Helper Functions
@@ -221,10 +227,10 @@ actor {
 
   func requireUser(caller : Principal) : UserProfile {
     switch (getUserByPrincipal(caller)) {
-      case (null) { Runtime.trap("Unauthorized: User profile not found") };
+      case (null) { Runtime.trap("User not found") };
       case (?user) {
         if (not user.isActive) {
-          Runtime.trap("Unauthorized: User account is inactive");
+          Runtime.trap("User is not active");
         };
         user;
       };
@@ -234,18 +240,18 @@ actor {
   func requireOwner(caller : Principal, businessId : Nat) : UserProfile {
     let user = requireUser(caller);
     if (user.businessId != businessId) {
-      Runtime.trap("Unauthorized: User does not belong to this business");
+      Runtime.trap("User does not belong to this business");
     };
     switch (user.role) {
       case (#owner) { user };
-      case (#salesman) { Runtime.trap("Unauthorized: Only business owners can perform this action") };
+      case (_) { Runtime.trap("Only business owner can perform this action") };
     };
   };
 
   func requireBusinessMember(caller : Principal, businessId : Nat) : UserProfile {
     let user = requireUser(caller);
     if (user.businessId != businessId) {
-      Runtime.trap("Unauthorized: User does not belong to this business");
+      Runtime.trap("User does not belong to this business");
     };
     user;
   };
@@ -253,30 +259,29 @@ actor {
   func requireSalesman(caller : Principal, businessId : Nat) : UserProfile {
     let user = requireUser(caller);
     if (user.businessId != businessId) {
-      Runtime.trap("Unauthorized: User does not belong to this business");
+      Runtime.trap("User does not belong to this business");
     };
     switch (user.role) {
       case (#salesman) { user };
-      case (#owner) { Runtime.trap("Unauthorized: Only salesmen can perform this action") };
+      case (_) { Runtime.trap("Only salesman can perform this action") };
     };
   };
 
   func logActivity(salesmanId : Nat, businessId : Nat, action : Text, metadata : Text) {
-    let logId = nextLogId;
     let log : SalesmanActivityLog = {
-      logId;
-      salesmanId;
-      businessId;
-      action;
+      logId = nextLogId;
+      salesmanId = salesmanId;
+      businessId = businessId;
+      action = action;
       timestamp = Time.now();
-      metadata;
+      metadata = metadata;
     };
-    activityLogs.add(logId, log);
+    activityLogs.add(nextLogId, log);
     nextLogId += 1;
   };
 
   // =========================
-  // User Profile Management
+  // User Profile Functions
   // =========================
 
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
@@ -286,97 +291,120 @@ actor {
     getUserByPrincipal(caller);
   };
 
-  public shared ({ caller }) func saveCallerUserProfile(profile : {
-    name : Text;
-    email : Text;
-    phone : Text;
-    businessId : Nat;
-    role : Role;
-    isActive : Bool;
-  }) : async () {
+  public shared ({ caller }) func saveCallerUserProfile(
+    name : Text,
+    email : Text,
+    phone : Text,
+    businessId : Nat,
+    role : Role,
+    isActive : Bool,
+  ) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can save profiles");
     };
 
     // Verify business exists
-    switch (businesses.get(profile.businessId)) {
-      case (null) { Runtime.trap("Business does not exist") };
-      case (?business) {
-        // Only allow owner role if caller is the business owner
-        switch (profile.role) {
-          case (#owner) {
-            if (business.owner != caller) {
-              Runtime.trap("Unauthorized: Only business owner can create owner profile");
-            };
+    let business = switch (businesses.get(businessId)) {
+      case (null) { Runtime.trap("Business not found") };
+      case (?b) { b };
+    };
+
+    // Authorization check based on role
+    switch (role) {
+      case (#owner) {
+        if (business.owner != caller) {
+          Runtime.trap("Only the business owner can register as owner");
+        };
+      };
+      case (#salesman) {
+        // Find matching invite
+        var foundInvite : ?SalesmanInvite = null;
+        for ((id, invite) in invites.entries()) {
+          if (
+            invite.businessId == businessId and invite.status == #pending and (invite.contactInfo == email or invite.contactInfo == phone)
+          ) {
+            foundInvite := ?invite;
           };
-          case (#salesman) {
-            // Salesman must have a valid invite - FIXED: proper operator precedence
-            let matchingInvite = invites.values().find(
-              func(invite : SalesmanInvite) : Bool {
-                invite.businessId == profile.businessId
-                and invite.status == #pending
-                and (invite.contactInfo == profile.email or invite.contactInfo == profile.phone);
-              }
-            );
-            switch (matchingInvite) {
-              case (null) { Runtime.trap("No valid invite found for this salesman") };
-              case (?foundInvite) {
-                // Mark the invite as accepted - FIXED: now marks as accepted
-                let updatedInvites = invites.map<Nat, SalesmanInvite, SalesmanInvite>(
-                  func(id, invite) {
-                    if (invite.businessId == profile.businessId and invite.status == #pending and (invite.contactInfo == profile.email or invite.contactInfo == profile.phone)) {
-                      { invite with status = #accepted };
-                    } else {
-                      invite;
-                    };
-                  }
-                );
-                invites.clear();
-                for ((id, invite) in updatedInvites.entries()) {
-                  invites.add(id, invite);
-                };
-              };
+        };
+
+        switch (foundInvite) {
+          case (null) {
+            Runtime.trap("No valid invite found for this salesman");
+          };
+          case (?invite) {
+            // Mark invite as accepted
+            let updatedInvite = {
+              id = invite.id;
+              contactInfo = invite.contactInfo;
+              businessId = invite.businessId;
+              status = #accepted;
+              invitedAt = invite.invitedAt;
             };
+            invites.add(invite.id, updatedInvite);
           };
         };
       };
     };
 
-    let userId = nextUserId;
-    let userProfile : UserProfile = {
-      userId;
+    // Create user profile
+    let profile : UserProfile = {
+      userId = nextUserId;
       principal = caller;
-      name = profile.name;
-      email = profile.email;
-      phone = profile.phone;
-      businessId = profile.businessId;
-      role = profile.role;
-      isActive = profile.isActive;
+      name = name;
+      email = email;
+      phone = phone;
+      businessId = businessId;
+      role = role;
+      isActive = isActive;
     };
 
-    users.add(userId, userProfile);
-    principalToUserId.add(caller, userId);
+    users.add(nextUserId, profile);
+    principalToUserId.add(caller, nextUserId);
     nextUserId += 1;
   };
 
-  public query ({ caller }) func getUserProfile(userPrincipal : Principal) : async ?UserProfile {
-    if (caller != userPrincipal and not AccessControl.isAdmin(accessControlState, caller)) {
-      // Check if caller is owner of the same business
-      let callerUser = getUserByPrincipal(caller);
-      let targetUser = getUserByPrincipal(userPrincipal);
+  public query ({ caller }) func getUserById(userId : Nat) : async ?UserProfile {
+    let callerUserOpt = getUserByPrincipal(caller);
+    let targetUserOpt = users.get(userId);
 
-      switch (callerUser, targetUser) {
-        case (?cu, ?tu) {
-          if (cu.businessId != tu.businessId or cu.role != #owner) {
-            Runtime.trap("Unauthorized: Can only view profiles from your own business as owner");
-          };
+    switch (callerUserOpt, targetUserOpt) {
+      case (null, _) { null };
+      case (_, null) { null };
+      case (?callerUser, ?targetUser) {
+        if (callerUser.businessId != targetUser.businessId) {
+          return null;
         };
-        case (_, _) {
-          Runtime.trap("Unauthorized: Can only view your own profile");
-        };
+        ?targetUser;
       };
     };
-    getUserByPrincipal(userPrincipal);
+  };
+
+  public query ({ caller }) func getUserProfile(userPrincipal : Principal) : async ?UserProfile {
+    // Admin bypass
+    if (AccessControl.isAdmin(accessControlState, caller)) {
+      return getUserByPrincipal(userPrincipal);
+    };
+
+    // Self-access allowed
+    if (caller == userPrincipal) {
+      return getUserByPrincipal(userPrincipal);
+    };
+
+    // Owner can view users in their business
+    let callerUserOpt = getUserByPrincipal(caller);
+    let targetUserOpt = getUserByPrincipal(userPrincipal);
+
+    switch (callerUserOpt, targetUserOpt) {
+      case (?callerUser, ?targetUser) {
+        if (callerUser.role == #owner and callerUser.businessId == targetUser.businessId) {
+          return ?targetUser;
+        };
+        Runtime.trap("Unauthorized: Can only view profiles in your business");
+      };
+      case (_, _) {
+        Runtime.trap("Unauthorized: Can only view your own profile");
+      };
+    };
   };
 
   // =========================
@@ -394,33 +422,33 @@ actor {
       Runtime.trap("Unauthorized: Only users can register businesses");
     };
 
-    if (name == "" or trialEndDate <= trialStartDate) {
-      Runtime.trap("Invalid business data");
+    if (name == "") {
+      Runtime.trap("Business name cannot be empty");
+    };
+
+    if (trialEndDate <= trialStartDate) {
+      Runtime.trap("Trial end date must be after start date");
     };
 
     // Check if caller already owns a business
-    let existingBusiness = businesses.values().find(
-      func(b : Business) : Bool {
-        b.owner == caller;
-      }
-    );
-    switch (existingBusiness) {
-      case (?_) { Runtime.trap("User already owns a business") };
-      case (null) {};
+    for ((id, business) in businesses.entries()) {
+      if (business.owner == caller) {
+        Runtime.trap("User already owns a business");
+      };
     };
 
-    let businessId = nextBusinessId;
     let business : Business = {
-      id = businessId;
-      name;
-      businessType;
+      id = nextBusinessId;
+      name = name;
+      businessType = businessType;
       owner = caller;
-      subscriptionStatus;
-      trialStartDate;
-      trialEndDate;
+      subscriptionStatus = subscriptionStatus;
+      trialStartDate = trialStartDate;
+      trialEndDate = trialEndDate;
     };
 
-    businesses.add(businessId, business);
+    businesses.add(nextBusinessId, business);
+    let businessId = nextBusinessId;
     nextBusinessId += 1;
     businessId;
   };
@@ -430,35 +458,42 @@ actor {
       Runtime.trap("Unauthorized: Only users can view businesses");
     };
 
-    // User can only view their own business
-    let user = requireBusinessMember(caller, businessId);
+    let _ = requireBusinessMember(caller, businessId);
 
     switch (businesses.get(businessId)) {
-      case (null) { Runtime.trap("Business does not exist") };
+      case (null) { Runtime.trap("Business not found") };
       case (?business) { business };
     };
   };
 
   public query ({ caller }) func getAllBusinesses() : async [Business] {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can view all businesses");
     };
-    businesses.values().toArray().sort();
+
+    let businessArray = businesses.values().toArray();
+    businessArray.sort(Comparison.compareBusinessesById);
   };
 
   public shared ({ caller }) func updateSubscription(
     businessId : Nat,
     newStatus : SubscriptionStatus,
   ) : async () {
-    let owner = requireOwner(caller, businessId);
+    let _ = requireOwner(caller, businessId);
 
     switch (businesses.get(businessId)) {
-      case (null) { Runtime.trap("Business does not exist") };
+      case (null) { Runtime.trap("Business not found") };
       case (?business) {
-        let updatedBusiness = {
-          business with subscriptionStatus = newStatus;
+        let updated = {
+          id = business.id;
+          name = business.name;
+          businessType = business.businessType;
+          owner = business.owner;
+          subscriptionStatus = newStatus;
+          trialStartDate = business.trialStartDate;
+          trialEndDate = business.trialEndDate;
         };
-        businesses.add(businessId, updatedBusiness);
+        businesses.add(businessId, updated);
       };
     };
   };
@@ -471,75 +506,91 @@ actor {
     businessId : Nat,
     contactInfo : Text,
   ) : async Nat {
-    let owner = requireOwner(caller, businessId);
+    let _ = requireOwner(caller, businessId);
 
     if (contactInfo == "") {
       Runtime.trap("Contact info cannot be empty");
     };
 
-    let inviteId = nextInviteId;
     let invite : SalesmanInvite = {
-      id = inviteId;
-      contactInfo;
-      businessId;
+      id = nextInviteId;
+      contactInfo = contactInfo;
+      businessId = businessId;
       status = #pending;
       invitedAt = Time.now();
     };
 
-    invites.add(inviteId, invite);
+    invites.add(nextInviteId, invite);
+    let inviteId = nextInviteId;
     nextInviteId += 1;
     inviteId;
   };
 
   public shared ({ caller }) func revokeInvite(inviteId : Nat) : async () {
-    switch (invites.get(inviteId)) {
-      case (null) { Runtime.trap("Invite does not exist") };
-      case (?invite) {
-        let owner = requireOwner(caller, invite.businessId);
-
-        let updatedInvite = {
-          invite with status = #revoked;
-        };
-        invites.add(inviteId, updatedInvite);
-      };
+    let invite = switch (invites.get(inviteId)) {
+      case (null) { Runtime.trap("Invite not found") };
+      case (?inv) { inv };
     };
+
+    let _ = requireOwner(caller, invite.businessId);
+
+    let updated = {
+      id = invite.id;
+      contactInfo = invite.contactInfo;
+      businessId = invite.businessId;
+      status = #revoked;
+      invitedAt = invite.invitedAt;
+    };
+    invites.add(inviteId, updated);
   };
 
   public shared ({ caller }) func deactivateSalesman(salesmanUserId : Nat) : async () {
-    switch (users.get(salesmanUserId)) {
-      case (null) { Runtime.trap("User does not exist") };
-      case (?salesman) {
-        let owner = requireOwner(caller, salesman.businessId);
+    let user = switch (users.get(salesmanUserId)) {
+      case (null) { Runtime.trap("User not found") };
+      case (?u) { u };
+    };
 
-        if (salesman.role != #salesman) {
-          Runtime.trap("Can only deactivate salesmen");
-        };
+    let _ = requireOwner(caller, user.businessId);
 
-        let updatedSalesman = {
-          salesman with isActive = false;
+    switch (user.role) {
+      case (#salesman) {
+        let updated = {
+          userId = user.userId;
+          principal = user.principal;
+          name = user.name;
+          email = user.email;
+          phone = user.phone;
+          businessId = user.businessId;
+          role = user.role;
+          isActive = false;
         };
-        users.add(salesmanUserId, updatedSalesman);
+        users.add(salesmanUserId, updated);
+      };
+      case (_) {
+        Runtime.trap("User is not a salesman");
       };
     };
   };
 
   public query ({ caller }) func getInvitesForBusiness(businessId : Nat) : async [SalesmanInvite] {
-    let owner = requireOwner(caller, businessId);
+    let _ = requireOwner(caller, businessId);
 
-    invites.values().filter(
-      func(invite : SalesmanInvite) : Bool {
-        invite.businessId == businessId;
-      }
-    ).toArray();
+    let inviteArray = invites.values().filter(
+        func(inv : SalesmanInvite) : Bool {
+          inv.businessId == businessId;
+        },
+      ).toArray();
+    inviteArray;
   };
 
-  // NEW: lookupInvite - no authorization check (for onboarding)
-  public query ({ caller }) func lookupInvite(contactInfo : Text) : async ?SalesmanInvite {
-    invites.values().find(
-      func(invite : SalesmanInvite) : Bool {
-        invite.contactInfo == contactInfo and invite.status == #pending;
-      }
-    );
+  public query func lookupInvite(contactInfo : Text) : async ?SalesmanInvite {
+    // NO authorization check as per spec
+    for ((id, invite) in invites.entries()) {
+      if (invite.contactInfo == contactInfo and invite.status == #pending) {
+        return ?invite;
+      };
+    };
+    null;
   };
 
   // =========================
@@ -555,25 +606,25 @@ actor {
     imageUrls : [Storage.ExternalBlob],
     isActive : Bool,
   ) : async Nat {
-    let owner = requireOwner(caller, businessId);
+    let _ = requireOwner(caller, businessId);
 
     if (name == "" or sku == "") {
       Runtime.trap("Product name and SKU cannot be empty");
     };
 
-    let productId = nextProductId;
     let product : Product = {
-      id = productId;
-      businessId;
-      name;
-      sku;
-      category;
-      description;
-      imageUrls;
-      isActive;
+      id = nextProductId;
+      businessId = businessId;
+      name = name;
+      sku = sku;
+      category = category;
+      description = description;
+      imageUrls = imageUrls;
+      isActive = isActive;
     };
 
-    productStore.add(productId, product);
+    productStore.add(nextProductId, product);
+    let productId = nextProductId;
     nextProductId += 1;
     productId;
   };
@@ -587,40 +638,44 @@ actor {
     imageUrls : [Storage.ExternalBlob],
     isActive : Bool,
   ) : async () {
-    switch (productStore.get(productId)) {
-      case (null) { Runtime.trap("Product does not exist") };
-      case (?product) {
-        let owner = requireOwner(caller, product.businessId);
-
-        let updatedProduct = {
-          product with
-          name = name;
-          sku = sku;
-          category = category;
-          description = description;
-          imageUrls = imageUrls;
-          isActive = isActive;
-        };
-        productStore.add(productId, updatedProduct);
-      };
+    let product = switch (productStore.get(productId)) {
+      case (null) { Runtime.trap("Product not found") };
+      case (?p) { p };
     };
+
+    let _ = requireOwner(caller, product.businessId);
+
+    let updated = {
+      id = product.id;
+      businessId = product.businessId;
+      name = name;
+      sku = sku;
+      category = category;
+      description = description;
+      imageUrls = imageUrls;
+      isActive = isActive;
+    };
+    productStore.add(productId, updated);
   };
 
   public query ({ caller }) func getProductsForBusiness(businessId : Nat) : async [Product] {
-    let user = requireBusinessMember(caller, businessId);
+    let _ = requireBusinessMember(caller, businessId);
 
-    productStore.values().filter(
-      func(product : Product) : Bool {
-        product.businessId == businessId;
-      }
-    ).toArray().sort(Comparison.compareProductsById);
+    let productArray = productStore.values().filter(
+        func(p : Product) : Bool {
+          p.businessId == businessId;
+        },
+      ).toArray();
+    productArray.sort(Comparison.compareProductsById);
   };
 
   public query ({ caller }) func getAllProducts() : async [Product] {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can view all products");
     };
-    productStore.values().toArray().sort(Comparison.compareProductsById);
+
+    let productArray = productStore.values().toArray();
+    productArray.sort(Comparison.compareProductsById);
   };
 
   // =========================
@@ -633,26 +688,26 @@ actor {
     stockCount : Nat,
     state : ProductState,
   ) : async Nat {
-    switch (productStore.get(productId)) {
-      case (null) { Runtime.trap("Product does not exist") };
-      case (?product) {
-        let owner = requireOwner(caller, product.businessId);
-
-        let variantId = nextVariantId;
-        let variant : ProductVariant = {
-          id = variantId;
-          productId;
-          variantName;
-          stockCount;
-          state;
-          lockedBy = null;
-        };
-
-        variants.add(variantId, variant);
-        nextVariantId += 1;
-        variantId;
-      };
+    let product = switch (productStore.get(productId)) {
+      case (null) { Runtime.trap("Product not found") };
+      case (?p) { p };
     };
+
+    let _ = requireOwner(caller, product.businessId);
+
+    let variant : ProductVariant = {
+      id = nextVariantId;
+      productId = productId;
+      variantName = variantName;
+      stockCount = stockCount;
+      state = state;
+      lockedBy = null;
+    };
+
+    variants.add(nextVariantId, variant);
+    let variantId = nextVariantId;
+    nextVariantId += 1;
+    variantId;
   };
 
   public shared ({ caller }) func editProductVariant(
@@ -660,114 +715,134 @@ actor {
     variantName : Text,
     stockCount : Nat,
   ) : async () {
-    switch (variants.get(variantId)) {
-      case (null) { Runtime.trap("Variant does not exist") };
-      case (?variant) {
-        switch (productStore.get(variant.productId)) {
-          case (null) { Runtime.trap("Product does not exist") };
-          case (?product) {
-            let owner = requireOwner(caller, product.businessId);
-
-            let updatedVariant = {
-              variant with
-              variantName = variantName;
-              stockCount = stockCount;
-            };
-            variants.add(variantId, updatedVariant);
-          };
-        };
-      };
+    let variant = switch (variants.get(variantId)) {
+      case (null) { Runtime.trap("Variant not found") };
+      case (?v) { v };
     };
+
+    let product = switch (productStore.get(variant.productId)) {
+      case (null) { Runtime.trap("Product not found") };
+      case (?p) { p };
+    };
+
+    let _ = requireOwner(caller, product.businessId);
+
+    let updated = {
+      id = variant.id;
+      productId = variant.productId;
+      variantName = variantName;
+      stockCount = stockCount;
+      state = variant.state;
+      lockedBy = variant.lockedBy;
+    };
+    variants.add(variantId, updated);
   };
 
   public shared ({ caller }) func lockVariant(variantId : Nat) : async () {
-    switch (variants.get(variantId)) {
-      case (null) { Runtime.trap("Variant does not exist") };
-      case (?variant) {
-        switch (productStore.get(variant.productId)) {
-          case (null) { Runtime.trap("Product does not exist") };
-          case (?product) {
-            let user = requireBusinessMember(caller, product.businessId);
+    let variant = switch (variants.get(variantId)) {
+      case (null) { Runtime.trap("Variant not found") };
+      case (?v) { v };
+    };
 
-            if (variant.state != #available) {
-              Runtime.trap("Variant is not available for locking");
-            };
+    let product = switch (productStore.get(variant.productId)) {
+      case (null) { Runtime.trap("Product not found") };
+      case (?p) { p };
+    };
 
-            if (variant.stockCount < 1) {
-              Runtime.trap("Variant is out of stock");
-            };
+    let user = requireBusinessMember(caller, product.businessId);
 
-            let updatedVariant = {
-              variant with
-              state = #locked;
-              lockedBy = ?user.userId;
-            };
-            variants.add(variantId, updatedVariant);
-
-            logActivity(user.userId, product.businessId, "lock_variant", "variantId: " # variantId.toText());
-          };
-        };
+    switch (variant.state) {
+      case (#available) {};
+      case (_) {
+        Runtime.trap("Variant is not available for locking");
       };
     };
+
+    if (variant.stockCount < 1) {
+      Runtime.trap("Variant is out of stock");
+    };
+
+    let updated = {
+      id = variant.id;
+      productId = variant.productId;
+      variantName = variant.variantName;
+      stockCount = variant.stockCount;
+      state = #locked;
+      lockedBy = ?user.userId;
+    };
+    variants.add(variantId, updated);
+
+    logActivity(user.userId, product.businessId, "lock_variant", variantId.toText());
   };
 
   public shared ({ caller }) func releaseVariantLock(variantId : Nat) : async () {
-    switch (variants.get(variantId)) {
-      case (null) { Runtime.trap("Variant does not exist") };
-      case (?variant) {
-        switch (productStore.get(variant.productId)) {
-          case (null) { Runtime.trap("Product does not exist") };
-          case (?product) {
-            let user = requireBusinessMember(caller, product.businessId);
+    let variant = switch (variants.get(variantId)) {
+      case (null) { Runtime.trap("Variant not found") };
+      case (?v) { v };
+    };
 
-            if (variant.state != #locked) {
-              Runtime.trap("Variant is not locked");
-            };
+    let product = switch (productStore.get(variant.productId)) {
+      case (null) { Runtime.trap("Product not found") };
+      case (?p) { p };
+    };
 
-            // Only the user who locked it or owner can release
-            switch (variant.lockedBy) {
-              case (null) { Runtime.trap("Variant lock owner not found") };
-              case (?lockerId) {
-                if (lockerId != user.userId and user.role != #owner) {
-                  Runtime.trap("Unauthorized: Only the locker or owner can release this lock");
-                };
-              };
-            };
+    let user = requireBusinessMember(caller, product.businessId);
 
-            let updatedVariant = {
-              variant with
-              state = #available;
-              lockedBy = null;
-            };
-            variants.add(variantId, updatedVariant);
-
-            logActivity(user.userId, product.businessId, "release_variant", "variantId: " # variantId.toText());
-          };
-        };
+    switch (variant.state) {
+      case (#locked) {};
+      case (_) {
+        Runtime.trap("Variant is not locked");
       };
     };
+
+    // Only locker or owner can release
+    let canRelease = switch (variant.lockedBy) {
+      case (?lockerId) {
+        lockerId == user.userId or user.role == #owner;
+      };
+      case (null) { false };
+    };
+
+    if (not canRelease) {
+      Runtime.trap("Only the locker or business owner can release this lock");
+    };
+
+    let updated = {
+      id = variant.id;
+      productId = variant.productId;
+      variantName = variant.variantName;
+      stockCount = variant.stockCount;
+      state = #available;
+      lockedBy = null;
+    };
+    variants.add(variantId, updated);
+
+    logActivity(user.userId, product.businessId, "release_variant", variantId.toText());
   };
 
   public query ({ caller }) func getVariantsForProduct(productId : Nat) : async [ProductVariant] {
-    switch (productStore.get(productId)) {
-      case (null) { Runtime.trap("Product does not exist") };
-      case (?product) {
-        let user = requireBusinessMember(caller, product.businessId);
-
-        variants.values().filter(
-          func(variant : ProductVariant) : Bool {
-            variant.productId == productId;
-          }
-        ).toArray().sort(Comparison.compareVariantsById);
-      };
+    let product = switch (productStore.get(productId)) {
+      case (null) { Runtime.trap("Product not found") };
+      case (?p) { p };
     };
+
+    let _ = requireBusinessMember(caller, product.businessId);
+
+    let variantArray = variants.values().filter(
+        func(v : ProductVariant) : Bool {
+          v.productId == productId;
+        },
+      ).toArray();
+    variantArray.sort(Comparison.compareVariantsById);
   };
 
   public query ({ caller }) func getAllProductVariants() : async [ProductVariant] {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can view all variants");
     };
-    variants.values().toArray().sort(Comparison.compareVariantsById);
+
+    let variantArray = variants.values().toArray();
+    variantArray.sort(Comparison.compareVariantsById);
   };
 
   // =========================
@@ -785,159 +860,192 @@ actor {
       Runtime.trap("Bill must have at least one item");
     };
 
-    // Verify all variants belong to this business and are locked by this user
-    for (item in items.values()) {
-      switch (variants.get(item.variantId)) {
-        case (null) { Runtime.trap("Variant does not exist") };
-        case (?variant) {
-          switch (productStore.get(variant.productId)) {
-            case (null) { Runtime.trap("Product does not exist") };
-            case (?product) {
-              if (product.businessId != businessId) {
-                Runtime.trap("Variant does not belong to this business");
-              };
-            };
-          };
+    // Validate all items
+    for (item in items.vals()) {
+      let variant = switch (variants.get(item.variantId)) {
+        case (null) { Runtime.trap("Variant not found: " # item.variantId.toText()) };
+        case (?v) { v };
+      };
 
-          if (variant.state != #locked) {
-            Runtime.trap("All variants must be locked before creating bill");
-          };
+      let product = switch (productStore.get(variant.productId)) {
+        case (null) { Runtime.trap("Product not found") };
+        case (?p) { p };
+      };
 
-          switch (variant.lockedBy) {
-            case (null) { Runtime.trap("Variant lock owner not found") };
-            case (?lockerId) {
-              if (lockerId != user.userId) {
-                Runtime.trap("All variants must be locked by the bill creator");
-              };
-            };
+      if (product.businessId != businessId) {
+        Runtime.trap("Variant does not belong to this business");
+      };
+
+      switch (variant.state) {
+        case (#locked) {};
+        case (_) {
+          Runtime.trap("Variant must be locked before adding to bill");
+        };
+      };
+
+      switch (variant.lockedBy) {
+        case (?lockerId) {
+          if (lockerId != user.userId) {
+            Runtime.trap("Variant is locked by another user");
           };
+        };
+        case (null) {
+          Runtime.trap("Variant is not locked");
         };
       };
     };
 
-    let billId = nextBillId;
     let bill : BillToken = {
-      id = billId;
-      businessId;
+      id = nextBillId;
+      businessId = businessId;
       salesmanId = user.userId;
-      items;
+      items = items;
       status = #pending;
       createdAt = Time.now();
       finalizedAt = null;
-      totalAmount;
+      totalAmount = totalAmount;
     };
 
-    bills.add(billId, bill);
+    bills.add(nextBillId, bill);
+    let billId = nextBillId;
     nextBillId += 1;
 
-    logActivity(user.userId, businessId, "create_bill", "billId: " # billId.toText());
-
+    logActivity(user.userId, businessId, "create_bill", billId.toText());
     billId;
   };
 
   public shared ({ caller }) func finalizeBill(billId : Nat) : async () {
-    switch (bills.get(billId)) {
-      case (null) { Runtime.trap("Bill does not exist") };
-      case (?bill) {
-        let owner = requireOwner(caller, bill.businessId);
+    let bill = switch (bills.get(billId)) {
+      case (null) { Runtime.trap("Bill not found") };
+      case (?b) { b };
+    };
 
-        if (bill.status != #pending) {
-          Runtime.trap("Bill is not pending");
-        };
+    let user = requireOwner(caller, bill.businessId);
 
-        // Mark variants as sold and deduct stock
-        for (item in bill.items.values()) {
-          switch (variants.get(item.variantId)) {
-            case (null) { Runtime.trap("Variant does not exist") };
-            case (?variant) {
-              if (variant.stockCount < item.quantity) {
-                Runtime.trap("Insufficient stock for variant");
-              };
-
-              let updatedVariant = {
-                variant with
-                state = #sold;
-                stockCount = variant.stockCount - item.quantity : Nat;
-                lockedBy = null;
-              };
-              variants.add(item.variantId, updatedVariant);
-            };
-          };
-        };
-
-        let updatedBill = {
-          bill with
-          status = #finalized;
-          finalizedAt = ?Time.now();
-        };
-        bills.add(billId, updatedBill);
-
-        logActivity(owner.userId, bill.businessId, "finalize_bill", "billId: " # billId.toText());
+    switch (bill.status) {
+      case (#pending) {};
+      case (_) {
+        Runtime.trap("Bill is not pending");
       };
     };
+
+    // Process each item
+    for (item in bill.items.vals()) {
+      let variant = switch (variants.get(item.variantId)) {
+        case (null) { Runtime.trap("Variant not found") };
+        case (?v) { v };
+      };
+
+      if (variant.stockCount < item.quantity) {
+        Runtime.trap("Insufficient stock for variant: " # item.variantId.toText());
+      };
+
+      let newStockCount = variant.stockCount - item.quantity;
+      let newState = if (newStockCount == 0) { #sold } else { #available };
+
+      let updated = {
+        id = variant.id;
+        productId = variant.productId;
+        variantName = variant.variantName;
+        stockCount = newStockCount;
+        state = newState;
+        lockedBy = null;
+      };
+      variants.add(item.variantId, updated);
+    };
+
+    let updatedBill = {
+      id = bill.id;
+      businessId = bill.businessId;
+      salesmanId = bill.salesmanId;
+      items = bill.items;
+      status = #finalized;
+      createdAt = bill.createdAt;
+      finalizedAt = ?Time.now();
+      totalAmount = bill.totalAmount;
+    };
+    bills.add(billId, updatedBill);
+
+    logActivity(user.userId, bill.businessId, "finalize_bill", billId.toText());
   };
 
   public shared ({ caller }) func cancelBill(billId : Nat) : async () {
-    switch (bills.get(billId)) {
-      case (null) { Runtime.trap("Bill does not exist") };
-      case (?bill) {
-        let owner = requireOwner(caller, bill.businessId);
+    let bill = switch (bills.get(billId)) {
+      case (null) { Runtime.trap("Bill not found") };
+      case (?b) { b };
+    };
 
-        if (bill.status != #pending) {
-          Runtime.trap("Bill is not pending");
-        };
+    let user = requireOwner(caller, bill.businessId);
 
-        // Release all locked variants
-        for (item in bill.items.values()) {
-          switch (variants.get(item.variantId)) {
-            case (null) { Runtime.trap("Variant does not exist") };
-            case (?variant) {
-              let updatedVariant = {
-                variant with
-                state = #available;
-                lockedBy = null;
-              };
-              variants.add(item.variantId, updatedVariant);
-            };
-          };
-        };
-
-        let updatedBill = {
-          bill with
-          status = #cancelled;
-        };
-        bills.add(billId, updatedBill);
-
-        logActivity(owner.userId, bill.businessId, "cancel_bill", "billId: " # billId.toText());
+    switch (bill.status) {
+      case (#pending) {};
+      case (_) {
+        Runtime.trap("Bill is not pending");
       };
     };
+
+    // Release all locked variants
+    for (item in bill.items.vals()) {
+      let variant = switch (variants.get(item.variantId)) {
+        case (null) { Runtime.trap("Variant not found") };
+        case (?v) { v };
+      };
+
+      let updated = {
+        id = variant.id;
+        productId = variant.productId;
+        variantName = variant.variantName;
+        stockCount = variant.stockCount;
+        state = #available;
+        lockedBy = null;
+      };
+      variants.add(item.variantId, updated);
+    };
+
+    let updatedBill = {
+      id = bill.id;
+      businessId = bill.businessId;
+      salesmanId = bill.salesmanId;
+      items = bill.items;
+      status = #cancelled;
+      createdAt = bill.createdAt;
+      finalizedAt = bill.finalizedAt;
+      totalAmount = bill.totalAmount;
+    };
+    bills.add(billId, updatedBill);
+
+    logActivity(user.userId, bill.businessId, "cancel_bill", billId.toText());
   };
 
   public query ({ caller }) func getBillsForBusiness(businessId : Nat) : async [BillToken] {
-    let user = requireBusinessMember(caller, businessId);
+    let _ = requireBusinessMember(caller, businessId);
 
-    bills.values().filter(
-      func(bill : BillToken) : Bool {
-        bill.businessId == businessId;
-      }
-    ).toArray().sort(Comparison.compareBillsById);
+    let billArray = bills.values().filter(
+        func(b : BillToken) : Bool {
+          b.businessId == businessId;
+        },
+      ).toArray();
+    billArray.sort(Comparison.compareBillsById);
   };
 
   public query ({ caller }) func getPendingBills(businessId : Nat) : async [BillToken] {
-    let user = requireBusinessMember(caller, businessId);
+    let _ = requireBusinessMember(caller, businessId);
 
-    bills.values().filter(
-      func(bill : BillToken) : Bool {
-        bill.businessId == businessId and bill.status == #pending;
-      }
-    ).toArray().sort(Comparison.compareBillsById);
+    let billArray = bills.values().filter(
+        func(b : BillToken) : Bool {
+          b.businessId == businessId and b.status == #pending;
+        },
+      ).toArray();
+    billArray.sort(Comparison.compareBillsById);
   };
 
   public query ({ caller }) func getAllBills() : async [BillToken] {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can view all bills");
     };
-    bills.values().toArray().sort(Comparison.compareBillsById);
+
+    let billArray = bills.values().toArray();
+    billArray.sort(Comparison.compareBillsById);
   };
 
   // =========================
@@ -945,28 +1053,28 @@ actor {
   // =========================
 
   public query ({ caller }) func getActivityLogs(businessId : Nat) : async [SalesmanActivityLog] {
-    let owner = requireOwner(caller, businessId);
+    let _ = requireOwner(caller, businessId);
 
     activityLogs.values().filter(
-      func(log : SalesmanActivityLog) : Bool {
-        log.businessId == businessId;
-      }
-    ).toArray();
+        func(log : SalesmanActivityLog) : Bool {
+          log.businessId == businessId;
+        },
+      ).toArray();
   };
 
   public query ({ caller }) func getSalesmanActivityLogs(salesmanUserId : Nat) : async [SalesmanActivityLog] {
-    switch (users.get(salesmanUserId)) {
-      case (null) { Runtime.trap("User does not exist") };
-      case (?salesman) {
-        let owner = requireOwner(caller, salesman.businessId);
-
-        activityLogs.values().filter(
-          func(log : SalesmanActivityLog) : Bool {
-            log.salesmanId == salesmanUserId;
-          }
-        ).toArray();
-      };
+    let user = switch (users.get(salesmanUserId)) {
+      case (null) { Runtime.trap("User not found") };
+      case (?u) { u };
     };
+
+    let _ = requireOwner(caller, user.businessId);
+
+    activityLogs.values().filter(
+        func(log : SalesmanActivityLog) : Bool {
+          log.salesmanId == salesmanUserId;
+        },
+      ).toArray();
   };
 
   // =========================
@@ -974,10 +1082,10 @@ actor {
   // =========================
 
   public query ({ caller }) func getTotalSales(businessId : Nat) : async Nat {
-    let owner = requireOwner(caller, businessId);
+    let _ = requireOwner(caller, businessId);
 
-    var total = 0;
-    for (bill in bills.values()) {
+    var total : Nat = 0;
+    for ((id, bill) in bills.entries()) {
       if (bill.businessId == businessId and bill.status == #finalized) {
         total += bill.totalAmount;
       };
@@ -986,10 +1094,10 @@ actor {
   };
 
   public query ({ caller }) func getTotalBillsCount(businessId : Nat) : async Nat {
-    let owner = requireOwner(caller, businessId);
+    let _ = requireOwner(caller, businessId);
 
-    var count = 0;
-    for (bill in bills.values()) {
+    var count : Nat = 0;
+    for ((id, bill) in bills.entries()) {
       if (bill.businessId == businessId and bill.status == #finalized) {
         count += 1;
       };
@@ -998,21 +1106,10 @@ actor {
   };
 
   // =========================
-  // Helper functions
+  // Helper
   // =========================
 
-  public query ({ caller }) func getTimeDiff(time1 : Time.Time, time2 : Time.Time) : async Int {
+  public query func getTimeDiff(time1 : Time.Time, time2 : Time.Time) : async Int {
     time1 - time2;
   };
-
-  // =========================
-  // External Blob Operations
-  // =========================
-
-  func validateBlob(blob : Storage.ExternalBlob) {
-    ();
-  };
-
-  // Blob storage
-  include MixinStorage();
 };

@@ -21,10 +21,12 @@ import {
   Package,
   Plus,
   Search,
+  Trash2,
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 // Import the concrete ExternalBlob class for static methods (fromBytes, etc.)
 import { ExternalBlob as ExternalBlobImpl } from "../../backend";
 import type { ExternalBlob, Product } from "../../backend.d";
@@ -51,6 +53,7 @@ export function CatalogManager() {
 
   const [search, setSearch] = useState("");
   const [showAddProduct, setShowAddProduct] = useState(false);
+  const [addProductKey, setAddProductKey] = useState(0);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [managingVariants, setManagingVariants] = useState<Product | null>(
     null,
@@ -62,6 +65,15 @@ export function CatalogManager() {
       p.sku.toLowerCase().includes(search.toLowerCase()) ||
       p.category.toLowerCase().includes(search.toLowerCase()),
   );
+
+  const handleOpenAddProduct = () => {
+    setAddProductKey((k) => k + 1);
+    setShowAddProduct(true);
+  };
+
+  const handleCloseAddProduct = () => {
+    setShowAddProduct(false);
+  };
 
   return (
     <div className="space-y-4">
@@ -83,7 +95,7 @@ export function CatalogManager() {
             background: "oklch(0.72 0.14 195)",
             color: "oklch(0.08 0.01 264)",
           }}
-          onClick={() => setShowAddProduct(true)}
+          onClick={handleOpenAddProduct}
         >
           <Plus className="h-4 w-4" />
           Add Product
@@ -101,7 +113,7 @@ export function CatalogManager() {
       {isLoading ? (
         <SkeletonGrid count={8} />
       ) : filtered.length === 0 ? (
-        <EmptyState onAdd={() => setShowAddProduct(true)} />
+        <EmptyState onAdd={handleOpenAddProduct} />
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {filtered.map((product, i) => (
@@ -116,25 +128,37 @@ export function CatalogManager() {
         </div>
       )}
 
-      {/* Add Product Dialog */}
+      {/* Add Product Dialog — key forces remount on each open, resetting all state */}
       <ProductFormDialog
+        key={`add-${addProductKey}`}
         open={showAddProduct}
-        onClose={() => setShowAddProduct(false)}
+        onClose={handleCloseAddProduct}
         onSubmit={async (data) => {
           if (!business?.id) return;
-          await addProduct.mutateAsync({
+          const productId = await addProduct.mutateAsync({
             ...data,
             imageUrls: data.imageUrls,
             businessId: business.id,
           });
+          // Add inline variants sequentially
+          for (const v of data.variants) {
+            if (v.variantName.trim()) {
+              await addVariant.mutateAsync({
+                productId,
+                variantName: v.variantName.trim(),
+                stockCount: BigInt(v.stockCount || "0"),
+              });
+            }
+          }
           setShowAddProduct(false);
         }}
-        isPending={addProduct.isPending}
+        isPending={addProduct.isPending || addVariant.isPending}
       />
 
       {/* Edit Product Dialog */}
       {editingProduct && (
         <ProductFormDialog
+          key={`edit-${editingProduct.id.toString()}`}
           open={!!editingProduct}
           onClose={() => setEditingProduct(null)}
           initialData={editingProduct}
@@ -256,6 +280,11 @@ function ProductCard({
   );
 }
 
+interface InlineVariant {
+  variantName: string;
+  stockCount: string;
+}
+
 interface ProductFormData {
   name: string;
   sku: string;
@@ -263,7 +292,19 @@ interface ProductFormData {
   description: string;
   imageUrls: ExternalBlob[];
   isActive: boolean;
+  /** Only used on Add (not Edit) */
+  variants: InlineVariant[];
 }
+
+const DEFAULT_FORM: ProductFormData = {
+  name: "",
+  sku: "",
+  category: "",
+  description: "",
+  imageUrls: [],
+  isActive: true,
+  variants: [],
+};
 
 function ProductFormDialog({
   open,
@@ -279,6 +320,7 @@ function ProductFormDialog({
   isPending: boolean;
 }) {
   const { actor } = useActor();
+
   const [form, setForm] = useState<ProductFormData>({
     name: initialData?.name ?? "",
     sku: initialData?.sku ?? "",
@@ -286,8 +328,31 @@ function ProductFormDialog({
     description: initialData?.description ?? "",
     imageUrls: initialData?.imageUrls ?? [],
     isActive: initialData?.isActive ?? true,
+    variants: [],
   });
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [isReadingFiles, setIsReadingFiles] = useState(false);
+  const [localPreviews, setLocalPreviews] = useState<string[]>(
+    initialData?.imageUrls?.map((img) => img.getDirectURL()) ?? [],
+  );
+
+  // New variant input state
+  const [newVariantName, setNewVariantName] = useState("");
+  const [newVariantStock, setNewVariantStock] = useState("");
+
+  // Reset form when dialog re-opens (key prop on parent handles add-mode resets;
+  // this handles the case where the same dialog instance becomes visible again)
+  const prevOpenRef = useRef(false);
+  useEffect(() => {
+    const wasOpen = prevOpenRef.current;
+    prevOpenRef.current = open;
+    if (open && !wasOpen && !initialData) {
+      setForm(DEFAULT_FORM);
+      setLocalPreviews([]);
+      setIsReadingFiles(false);
+      setNewVariantName("");
+      setNewVariantStock("");
+    }
+  }, [open, initialData]);
 
   const set =
     (
@@ -302,36 +367,86 @@ function ProductFormDialog({
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     if (files.length === 0) return;
+    // Suppress actor unused warning — actor may be needed for future blob ops
+    void actor;
+    setIsReadingFiles(true);
     try {
+      const newBlobs: ExternalBlob[] = [];
+      const newPreviews: string[] = [];
       for (const file of files) {
+        // Create a local object URL for immediate visual preview
+        const previewUrl = URL.createObjectURL(file);
         const bytes = new Uint8Array(await file.arrayBuffer());
-        const blob = ExternalBlobImpl.fromBytes(bytes).withUploadProgress(
-          (pct) => {
-            setUploadProgress(Math.round(pct));
-          },
-        );
-        setForm((f) => ({ ...f, imageUrls: [...f.imageUrls, blob] }));
+        // ExternalBlob.fromBytes creates a lazy blob — it will be uploaded
+        // to the backend when passed to actor.addProduct / actor.editProduct.
+        // We do NOT call withUploadProgress here because the upload happens
+        // during form submit (isPending on the submit button covers that UX).
+        const blob = ExternalBlobImpl.fromBytes(bytes);
+        newBlobs.push(blob);
+        newPreviews.push(previewUrl);
       }
+      // Batch-update state once after reading all files
+      setForm((f) => ({ ...f, imageUrls: [...f.imageUrls, ...newBlobs] }));
+      setLocalPreviews((prev) => [...prev, ...newPreviews]);
     } catch (err) {
-      console.error("Image upload error:", err);
+      console.error("Image read error:", err);
+      toast.error("Failed to read image file. Please try again.");
     } finally {
-      setUploadProgress(null);
+      setIsReadingFiles(false);
       e.target.value = "";
     }
   };
 
   const removeImage = (index: number) => {
+    // Revoke the object URL to free memory if it's a local preview
+    const preview = localPreviews[index];
+    if (preview?.startsWith("blob:")) {
+      URL.revokeObjectURL(preview);
+    }
     setForm((f) => ({
       ...f,
       imageUrls: f.imageUrls.filter((_, i) => i !== index),
     }));
+    setLocalPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Suppress unused actor warning — actor is available for future upload ops
-  void actor;
+  const addInlineVariant = () => {
+    if (!newVariantName.trim()) return;
+    setForm((f) => ({
+      ...f,
+      variants: [
+        ...f.variants,
+        { variantName: newVariantName.trim(), stockCount: newVariantStock },
+      ],
+    }));
+    setNewVariantName("");
+    setNewVariantStock("");
+  };
+
+  const removeInlineVariant = (index: number) => {
+    setForm((f) => ({
+      ...f,
+      variants: f.variants.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleCancel = () => {
+    // Revoke all local object URLs to free memory
+    for (const url of localPreviews) {
+      if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+    }
+    setForm(DEFAULT_FORM);
+    setLocalPreviews([]);
+    setIsReadingFiles(false);
+    setNewVariantName("");
+    setNewVariantStock("");
+    onClose();
+  };
+
+  const isAddMode = !initialData;
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleCancel}>
       <DialogContent className="max-w-md glass-card border-border/50">
         <DialogHeader>
           <DialogTitle className="font-display">
@@ -378,16 +493,16 @@ function ProductFormDialog({
             {/* Image upload */}
             <Field label="Product Photos">
               <div className="space-y-2">
-                {form.imageUrls.length > 0 && (
+                {localPreviews.length > 0 && (
                   <div className="flex gap-2 flex-wrap">
-                    {form.imageUrls.map((img, i) => (
+                    {localPreviews.map((preview, i) => (
                       <div
                         // biome-ignore lint/suspicious/noArrayIndexKey: stable list
                         key={i}
                         className="relative w-20 h-20 rounded-lg overflow-hidden border border-border/50"
                       >
                         <img
-                          src={img.getDirectURL()}
+                          src={preview}
                           alt={`Uploaded ${i + 1}`}
                           className="w-full h-full object-cover"
                         />
@@ -402,11 +517,13 @@ function ProductFormDialog({
                     ))}
                   </div>
                 )}
-                <label className="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg border border-dashed border-border/50 hover:border-primary/50 transition-colors text-sm text-muted-foreground hover:text-foreground">
-                  {uploadProgress !== null ? (
+                <label
+                  className={`flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg border border-dashed border-border/50 hover:border-primary/50 transition-colors text-sm text-muted-foreground hover:text-foreground ${isReadingFiles ? "opacity-60 cursor-not-allowed" : ""}`}
+                >
+                  {isReadingFiles ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Uploading {uploadProgress}%
+                      Reading photo…
                     </>
                   ) : (
                     <>
@@ -420,7 +537,7 @@ function ProductFormDialog({
                     multiple
                     className="hidden"
                     onChange={(e) => void handleImageUpload(e)}
-                    disabled={uploadProgress !== null}
+                    disabled={isReadingFiles}
                   />
                 </label>
               </div>
@@ -433,23 +550,116 @@ function ProductFormDialog({
                 onCheckedChange={(v) => setForm((f) => ({ ...f, isActive: v }))}
               />
             </div>
+
+            {/* Inline Variants — only shown in Add mode */}
+            {isAddMode && (
+              <div className="border-t border-border/50 pt-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                  Variants &amp; Stock
+                </p>
+
+                {/* Existing inline variants */}
+                {form.variants.length > 0 && (
+                  <div className="space-y-1.5 mb-2">
+                    {form.variants.map((v, i) => (
+                      <div
+                        // biome-ignore lint/suspicious/noArrayIndexKey: stable list
+                        key={i}
+                        className="flex items-center gap-2 bg-input/30 rounded-lg px-3 py-1.5"
+                      >
+                        <span className="flex-1 text-sm font-medium truncate">
+                          {v.variantName}
+                        </span>
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          Qty: {v.stockCount || "0"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeInlineVariant(i)}
+                          className="p-0.5 rounded text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add new variant row */}
+                <div className="flex gap-2 items-center">
+                  <Input
+                    placeholder="Variant (e.g. Size M)"
+                    value={newVariantName}
+                    onChange={(e) => setNewVariantName(e.target.value)}
+                    className="h-8 text-sm bg-input/50 flex-1"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addInlineVariant();
+                      }
+                    }}
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Qty"
+                    value={newVariantStock}
+                    onChange={(e) => setNewVariantStock(e.target.value)}
+                    className="h-8 text-sm bg-input/50 w-20 shrink-0"
+                    min={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addInlineVariant();
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 px-2 shrink-0"
+                    disabled={!newVariantName.trim()}
+                    onClick={addInlineVariant}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground/70 mt-1.5">
+                  Add all sizes/colours before saving. You can also manage
+                  variants later from the product card.
+                </p>
+              </div>
+            )}
           </div>
         </ScrollArea>
         <DialogFooter>
-          <Button variant="outline" size="sm" onClick={onClose}>
+          <Button variant="outline" size="sm" onClick={handleCancel}>
             Cancel
           </Button>
           <Button
             size="sm"
-            disabled={!form.name || isPending}
+            disabled={!form.name || !form.sku || isPending || isReadingFiles}
             onClick={() => void onSubmit(form)}
             style={{
               background: "oklch(0.72 0.14 195)",
               color: "oklch(0.08 0.01 264)",
             }}
           >
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {initialData ? "Save Changes" : "Add Product"}
+            {isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                {isAddMode ? "Adding..." : "Saving…"}
+              </>
+            ) : isReadingFiles ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                Reading…
+              </>
+            ) : initialData ? (
+              "Save Changes"
+            ) : (
+              "Add Product"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
