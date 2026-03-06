@@ -166,13 +166,9 @@ export function ProductDetailPage({ product, onBack }: Props) {
     }
   };
 
+  // A variant is "mine" if I have a local lock entry for it (lockedItems is the source of truth)
   const myLockedVariants = (variants ?? []).filter(
-    (v) =>
-      lockedItems[v.id.toString()] !== undefined ||
-      (v.state === ProductState.locked &&
-        myUserId &&
-        v.lockedBy === myUserId &&
-        lockedItems[v.id.toString()] !== undefined),
+    (v) => lockedItems[v.id.toString()] !== undefined,
   );
 
   const handleGenerateBill = async () => {
@@ -377,8 +373,13 @@ export function ProductDetailPage({ product, onBack }: Props) {
               onClick={() => setShowBillModal(true)}
             >
               <ShoppingCart className="h-5 w-5" />
-              Generate Bill Token ({myLockedVariants.length} item
-              {myLockedVariants.length !== 1 ? "s" : ""})
+              {(() => {
+                const totalUnits = myLockedVariants.reduce(
+                  (sum, v) => sum + (lockedItems[v.id.toString()] ?? 1),
+                  0,
+                );
+                return `Generate Bill Token (${totalUnits} item${totalUnits !== 1 ? "s" : ""})`;
+              })()}
             </Button>
           </motion.div>
         )}
