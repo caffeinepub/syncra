@@ -29,6 +29,19 @@ import type {
   ProductVariant,
   UserProfile,
 } from "../../backend.d";
+
+/** Safely get a display URL from an ExternalBlob that may be a plain object after cache rehydration */
+function safeGetURL(blob: ExternalBlob): string {
+  try {
+    if (typeof blob.getDirectURL === "function") return blob.getDirectURL();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = blob as any;
+    if (typeof raw.url === "string") return raw.url;
+    return "";
+  } catch {
+    return "";
+  }
+}
 import { ProductState } from "../../backend.d";
 import { useAppContext } from "../../context/AppContext";
 import { useActor } from "../../hooks/useActor";
@@ -217,22 +230,26 @@ export function ProductDetailPage({ product, onBack }: Props) {
                   className="flex overflow-x-auto snap-x snap-mandatory scrollbar-thin"
                   style={{ scrollSnapType: "x mandatory" }}
                 >
-                  {product.imageUrls.map((url, i) => (
-                    <button
-                      // biome-ignore lint/suspicious/noArrayIndexKey: image list is stable
-                      key={i}
-                      type="button"
-                      className="shrink-0 w-full snap-center aspect-[4/3] cursor-zoom-in block"
-                      onClick={() => setLightboxIndex(i)}
-                      aria-label={`View ${product.name} fullscreen, photo ${i + 1}`}
-                    >
-                      <img
-                        src={url.getDirectURL()}
-                        alt={`${product.name} ${i + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                    </button>
-                  ))}
+                  {product.imageUrls.map((url, i) => {
+                    const imgSrc = safeGetURL(url);
+                    if (!imgSrc) return null;
+                    return (
+                      <button
+                        // biome-ignore lint/suspicious/noArrayIndexKey: image list is stable
+                        key={i}
+                        type="button"
+                        className="shrink-0 w-full snap-center aspect-[4/3] cursor-zoom-in block"
+                        onClick={() => setLightboxIndex(i)}
+                        aria-label={`View ${product.name} fullscreen, photo ${i + 1}`}
+                      >
+                        <img
+                          src={imgSrc}
+                          alt={`${product.name} ${i + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    );
+                  })}
                 </div>
                 {product.imageUrls.length > 1 && (
                   <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 pointer-events-none">
@@ -610,7 +627,7 @@ function ImageLightbox({
         onClick={(e) => e.stopPropagation()}
       >
         <img
-          src={images[current].getDirectURL()}
+          src={safeGetURL(images[current])}
           alt={`${current + 1} of ${images.length}`}
           className="max-w-full max-h-full object-contain rounded-lg select-none"
           draggable={false}

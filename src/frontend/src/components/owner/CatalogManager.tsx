@@ -30,6 +30,19 @@ import { toast } from "sonner";
 // Import the concrete ExternalBlob class for static methods (fromBytes, etc.)
 import { ExternalBlob as ExternalBlobImpl } from "../../backend";
 import type { ExternalBlob, Product } from "../../backend.d";
+
+/** Safely get a display URL from an ExternalBlob that may be a plain object after cache rehydration */
+function safeGetURL(blob: ExternalBlob): string {
+  try {
+    if (typeof blob.getDirectURL === "function") return blob.getDirectURL();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = blob as any;
+    if (typeof raw.url === "string") return raw.url;
+    return "";
+  } catch {
+    return "";
+  }
+}
 import { useAppContext } from "../../context/AppContext";
 import { useActor } from "../../hooks/useActor";
 import {
@@ -222,9 +235,9 @@ function ProductCard({
           background: `linear-gradient(135deg, oklch(0.22 0.02 ${200 + (index % 5) * 20}) 0%, oklch(0.18 0.02 ${220 + (index % 5) * 15}) 100%)`,
         }}
       >
-        {product.imageUrls.length > 0 ? (
+        {product.imageUrls.length > 0 && safeGetURL(product.imageUrls[0]) ? (
           <img
-            src={product.imageUrls[0].getDirectURL()}
+            src={safeGetURL(product.imageUrls[0])}
             alt={product.name}
             className="w-full h-full object-cover"
             loading="lazy"
@@ -332,7 +345,7 @@ function ProductFormDialog({
   });
   const [isReadingFiles, setIsReadingFiles] = useState(false);
   const [localPreviews, setLocalPreviews] = useState<string[]>(
-    initialData?.imageUrls?.map((img) => img.getDirectURL()) ?? [],
+    initialData?.imageUrls?.map((img) => safeGetURL(img)).filter(Boolean) ?? [],
   );
 
   // New variant input state

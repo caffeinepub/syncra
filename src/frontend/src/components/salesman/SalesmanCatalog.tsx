@@ -3,10 +3,24 @@ import { Input } from "@/components/ui/input";
 import { Package, Search } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
-import type { Product } from "../../backend.d";
+import type { ExternalBlob, Product } from "../../backend.d";
 import { useAppContext } from "../../context/AppContext";
 import { useProducts } from "../../hooks/useQueries";
 import { SkeletonGrid } from "../shared/SkeletonCard";
+
+/** Safely get a display URL from an ExternalBlob that may be a plain object after cache rehydration */
+function safeGetURL(blob: ExternalBlob): string {
+  try {
+    if (typeof blob.getDirectURL === "function") return blob.getDirectURL();
+    // Fallback: some cached objects may expose a raw url property
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = blob as any;
+    if (typeof raw.url === "string") return raw.url;
+    return "";
+  } catch {
+    return "";
+  }
+}
 
 interface Props {
   onSelectProduct: (product: Product) => void;
@@ -160,9 +174,9 @@ function ProductTile({
           background: `linear-gradient(135deg, oklch(0.22 0.03 ${hue}) 0%, oklch(0.18 0.025 ${hue + 20}) 100%)`,
         }}
       >
-        {product.imageUrls.length > 0 ? (
+        {product.imageUrls.length > 0 && safeGetURL(product.imageUrls[0]) ? (
           <img
-            src={product.imageUrls[0].getDirectURL()}
+            src={safeGetURL(product.imageUrls[0])}
             alt={product.name}
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             loading="lazy"

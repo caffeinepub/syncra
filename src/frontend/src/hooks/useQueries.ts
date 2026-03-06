@@ -19,6 +19,39 @@ function isDefined<T>(v: T | undefined | null): v is T {
   return v !== undefined && v !== null;
 }
 
+// Serialize products for offline cache — strip ExternalBlob objects down to
+// plain URL strings so JSON.stringify doesn't lose the getDirectURL method.
+function serializeProductsForCache(
+  products: Product[],
+): Array<Omit<Product, "imageUrls"> & { imageUrls: string[] }> {
+  return products.map((p) => ({
+    ...p,
+    imageUrls: p.imageUrls.map((b) => {
+      try {
+        return b.getDirectURL();
+      } catch {
+        return "";
+      }
+    }),
+  }));
+}
+
+// Rehydrate cached products — convert plain URL strings back into ExternalBlob
+// instances via ExternalBlob.fromURL so .getDirectURL() works correctly.
+import { ExternalBlob as ExternalBlobImpl } from "../backend";
+function deserializeProductsFromCache(
+  raw: Array<Omit<Product, "imageUrls"> & { imageUrls: string[] }>,
+): Product[] {
+  return raw.map((p) => ({
+    ...p,
+    id: BigInt(p.id),
+    businessId: BigInt(p.businessId),
+    imageUrls: (p.imageUrls ?? [])
+      .filter(Boolean)
+      .map((url) => ExternalBlobImpl.fromURL(url)),
+  })) as unknown as Product[];
+}
+
 export function useProducts(businessId: bigint | undefined) {
   const { actor, isFetching } = useActor();
   return useQuery<Product[]>({
@@ -26,11 +59,15 @@ export function useProducts(businessId: bigint | undefined) {
     queryFn: async () => {
       if (!actor || !isDefined(businessId)) return [];
       const products = await actor.getProductsForBusiness(businessId);
-      // Cache to localStorage for offline
-      localStorage.setItem(
-        `syncra_products_${businessId}`,
-        JSON.stringify(products),
-      );
+      // Cache serialized (URL strings only) for offline use
+      try {
+        localStorage.setItem(
+          `syncra_products_${businessId}`,
+          JSON.stringify(serializeProductsForCache(products)),
+        );
+      } catch {
+        // Ignore storage quota errors
+      }
       return products;
     },
     enabled: !!actor && !isFetching && isDefined(businessId),
@@ -39,7 +76,10 @@ export function useProducts(businessId: bigint | undefined) {
       const cached = localStorage.getItem(`syncra_products_${businessId}`);
       if (cached) {
         try {
-          return JSON.parse(cached) as Product[];
+          const raw = JSON.parse(cached) as Array<
+            Omit<Product, "imageUrls"> & { imageUrls: string[] }
+          >;
+          return deserializeProductsFromCache(raw);
         } catch {
           return [];
         }
