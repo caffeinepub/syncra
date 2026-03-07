@@ -20,6 +20,7 @@ import {
   Loader2,
   Package,
   Plus,
+  RotateCcw,
   Search,
   Trash2,
   X,
@@ -52,6 +53,7 @@ import {
   useEditVariant,
   useProductVariants,
   useProducts,
+  useResetVariantToAvailable,
 } from "../../hooks/useQueries";
 import { SkeletonGrid } from "../shared/SkeletonCard";
 import { ProductStateBadge } from "../shared/StatusBadge";
@@ -705,6 +707,7 @@ function VariantManagerDialog({
   editPending: boolean;
 }) {
   const { data: variants, isLoading } = useProductVariants(product.id);
+  const resetVariant = useResetVariantToAvailable();
   const [newVariant, setNewVariant] = useState({ name: "", stock: "" });
   const [editingVariant, setEditingVariant] = useState<{
     id: bigint;
@@ -801,33 +804,55 @@ function VariantManagerDialog({
                   ) : (
                     <div
                       key={v.id.toString()}
-                      className="glass-card rounded-lg p-3 flex items-center justify-between"
+                      className="glass-card rounded-lg p-3 flex items-center justify-between gap-2"
                     >
-                      <div>
-                        <p className="text-sm font-medium">{v.variantName}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {v.variantName}
+                        </p>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-xs text-muted-foreground">
                             Stock: {v.stockCount.toString()}
                           </span>
                           <ProductStateBadge
                             state={v.state}
+                            stockCount={v.stockCount}
                             className="text-[10px] py-0 h-4"
                           />
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setEditingVariant({
-                            id: v.id,
-                            name: v.variantName,
-                            stock: v.stockCount.toString(),
-                          })
-                        }
-                        className="p-1.5 rounded hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        <Edit className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {/* Reset to Available — only shown for locked or sold variants */}
+                        {v.state !== "available" && (
+                          <button
+                            type="button"
+                            title="Reset to Available"
+                            onClick={() => void resetVariant.mutate(v.id)}
+                            disabled={resetVariant.isPending}
+                            className="p-1.5 rounded hover:bg-accent/50 text-muted-foreground hover:text-emerald-400 transition-colors"
+                          >
+                            {resetVariant.isPending ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          title="Edit variant"
+                          onClick={() =>
+                            setEditingVariant({
+                              id: v.id,
+                              name: v.variantName,
+                              stock: v.stockCount.toString(),
+                            })
+                          }
+                          className="p-1.5 rounded hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
                   ),
                 )}

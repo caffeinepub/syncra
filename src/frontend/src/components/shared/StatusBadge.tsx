@@ -9,13 +9,36 @@ import {
 
 interface ProductStateBadgeProps {
   state: ProductState;
+  /** Pass stockCount so we never show "Sold" when stock is still > 0 */
+  stockCount?: bigint | number;
   className?: string;
 }
 
 export function ProductStateBadge({
   state,
+  stockCount,
   className,
 }: ProductStateBadgeProps) {
+  // Correct the effective state: if backend says "sold" but stock remains, treat as available
+  const hasStock =
+    stockCount !== undefined && stockCount !== null
+      ? BigInt(stockCount) > BigInt(0)
+      : true; // unknown stock — trust backend state
+
+  let effectiveState = state;
+  if (state === ProductState.sold && hasStock) {
+    effectiveState = ProductState.available;
+  }
+  // Also: if state is "available" but stock is 0, treat as sold
+  if (
+    state === ProductState.available &&
+    stockCount !== undefined &&
+    stockCount !== null &&
+    BigInt(stockCount) === BigInt(0)
+  ) {
+    effectiveState = ProductState.sold;
+  }
+
   const config = {
     [ProductState.available]: {
       label: "Available",
@@ -26,11 +49,11 @@ export function ProductStateBadge({
       className: "bg-warning/15 text-warning border-warning/20",
     },
     [ProductState.sold]: {
-      label: "Sold",
+      label: "Sold Out",
       className: "bg-destructive/15 text-destructive border-destructive/20",
     },
   };
-  const { label, className: stateClass } = config[state];
+  const { label, className: stateClass } = config[effectiveState];
   return (
     <Badge
       variant="outline"
@@ -40,9 +63,9 @@ export function ProductStateBadge({
         className="mr-1.5 h-1.5 w-1.5 rounded-full inline-block"
         style={{
           background:
-            state === ProductState.available
+            effectiveState === ProductState.available
               ? "oklch(var(--success))"
-              : state === ProductState.locked
+              : effectiveState === ProductState.locked
                 ? "oklch(var(--warning))"
                 : "oklch(var(--destructive))",
         }}

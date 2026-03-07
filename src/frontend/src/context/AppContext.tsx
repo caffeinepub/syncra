@@ -121,11 +121,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     retry: 1,
   });
 
-  // When identity is lost (logout), clear cached profile/business
+  // When identity is lost (logout), clear cached profile/business and saved role
   useEffect(() => {
     if (!identity && identityStable) {
       queryClient.removeQueries({ queryKey: ["userProfile"] });
       queryClient.removeQueries({ queryKey: ["business"] });
+      localStorage.removeItem("syncra_role");
       setView("splash");
     }
   }, [identity, identityStable, queryClient]);
@@ -145,7 +146,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (userProfile) {
       // Profile confirmed — mark resolved and navigate
       profileResolvedRef.current = true;
-      localStorage.removeItem("syncra_role");
       const targetView =
         userProfile.role === "owner" ? "owner-dashboard" : "salesman-floor";
       // Only call setView if we haven't already routed here — prevents re-render loops

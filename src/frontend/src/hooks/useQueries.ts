@@ -159,6 +159,25 @@ export function useReleaseVariant() {
   });
 }
 
+export function useResetVariantToAvailable() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (variantId: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      // releaseVariantLock resets the variant back to available state
+      await actor.releaseVariantLock(variantId);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["variants"] });
+      toast.success("Variant reset to Available");
+    },
+    onError: () => {
+      toast.error("Failed to reset variant state");
+    },
+  });
+}
+
 export function useAddProduct() {
   const { actor } = useActor();
   const qc = useQueryClient();
