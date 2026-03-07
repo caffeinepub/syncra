@@ -96,7 +96,7 @@ export function SalesmanProfile() {
         />
         <StatCard
           label="Earnings"
-          value={`$${Number(totalEarnings / BigInt(100)).toLocaleString()}`}
+          value={`₹${Number(totalEarnings / BigInt(100)).toLocaleString("en-IN")}`}
           icon={<TrendingUp className="h-4 w-4" />}
           color="oklch(0.72 0.18 155)"
         />
