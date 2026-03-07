@@ -8,13 +8,15 @@ import Order "mo:core/Order";
 import Principal "mo:core/Principal";
 import Iter "mo:core/Iter";
 import Runtime "mo:core/Runtime";
+import Migration "migration";
 
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 import Storage "blob-storage/Storage";
 import MixinStorage "blob-storage/Mixin";
 
-
+// Apply migration on upgrade
+(with migration = Migration.run)
 actor {
   // =========================
   // Types/Modules/State
@@ -109,6 +111,7 @@ actor {
     sku : Text;
     category : Text;
     description : Text;
+    basePrice : Nat;
     imageUrls : [Storage.ExternalBlob];
     isActive : Bool;
   };
@@ -123,6 +126,7 @@ actor {
     id : Nat;
     productId : Nat;
     variantName : Text;
+    price : Nat;
     stockCount : Nat;
     state : ProductState;
     lockedBy : ?Nat;
@@ -226,8 +230,13 @@ actor {
   };
 
   func requireUser(caller : Principal) : UserProfile {
+    // Ensure caller has at least user permission in AccessControl
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only authenticated users can perform this action");
+    };
+
     switch (getUserByPrincipal(caller)) {
-      case (null) { Runtime.trap("User not found") };
+      case (null) { Runtime.trap("User profile not found") };
       case (?user) {
         if (not user.isActive) {
           Runtime.trap("User is not active");
@@ -364,6 +373,11 @@ actor {
   };
 
   public query ({ caller }) func getUserById(userId : Nat) : async ?UserProfile {
+    // Require authenticated user
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only authenticated users can view user profiles");
+    };
+
     let callerUserOpt = getUserByPrincipal(caller);
     let targetUserOpt = users.get(userId);
 
@@ -371,6 +385,7 @@ actor {
       case (null, _) { null };
       case (_, null) { null };
       case (?callerUser, ?targetUser) {
+        // Can only view users in same business
         if (callerUser.businessId != targetUser.businessId) {
           return null;
         };
@@ -383,6 +398,11 @@ actor {
     // Admin bypass
     if (AccessControl.isAdmin(accessControlState, caller)) {
       return getUserByPrincipal(userPrincipal);
+    };
+
+    // Require at least user permission
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only authenticated users can view profiles");
     };
 
     // Self-access allowed
@@ -454,10 +474,6 @@ actor {
   };
 
   public query ({ caller }) func getBusiness(businessId : Nat) : async Business {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view businesses");
-    };
-
     let _ = requireBusinessMember(caller, businessId);
 
     switch (businesses.get(businessId)) {
@@ -584,7 +600,8 @@ actor {
   };
 
   public query func lookupInvite(contactInfo : Text) : async ?SalesmanInvite {
-    // NO authorization check as per spec
+    // Public endpoint - no authorization required
+    // This allows potential salesmen to check for invites before registering
     for ((id, invite) in invites.entries()) {
       if (invite.contactInfo == contactInfo and invite.status == #pending) {
         return ?invite;
@@ -603,6 +620,7 @@ actor {
     sku : Text,
     category : Text,
     description : Text,
+    basePrice : Nat,
     imageUrls : [Storage.ExternalBlob],
     isActive : Bool,
   ) : async Nat {
@@ -619,6 +637,7 @@ actor {
       sku = sku;
       category = category;
       description = description;
+      basePrice = basePrice;
       imageUrls = imageUrls;
       isActive = isActive;
     };
@@ -635,6 +654,7 @@ actor {
     sku : Text,
     category : Text,
     description : Text,
+    basePrice : Nat,
     imageUrls : [Storage.ExternalBlob],
     isActive : Bool,
   ) : async () {
@@ -652,6 +672,7 @@ actor {
       sku = sku;
       category = category;
       description = description;
+      basePrice = basePrice;
       imageUrls = imageUrls;
       isActive = isActive;
     };
@@ -685,6 +706,7 @@ actor {
   public shared ({ caller }) func addProductVariant(
     productId : Nat,
     variantName : Text,
+    price : Nat,
     stockCount : Nat,
     state : ProductState,
   ) : async Nat {
@@ -699,6 +721,7 @@ actor {
       id = nextVariantId;
       productId = productId;
       variantName = variantName;
+      price = price;
       stockCount = stockCount;
       state = state;
       lockedBy = null;
@@ -713,6 +736,7 @@ actor {
   public shared ({ caller }) func editProductVariant(
     variantId : Nat,
     variantName : Text,
+    price : Nat,
     stockCount : Nat,
   ) : async () {
     let variant = switch (variants.get(variantId)) {
@@ -731,6 +755,7 @@ actor {
       id = variant.id;
       productId = variant.productId;
       variantName = variantName;
+      price = price;
       stockCount = stockCount;
       state = variant.state;
       lockedBy = variant.lockedBy;
@@ -766,6 +791,7 @@ actor {
       id = variant.id;
       productId = variant.productId;
       variantName = variant.variantName;
+      price = variant.price;
       stockCount = variant.stockCount;
       state = #locked;
       lockedBy = ?user.userId;
@@ -811,6 +837,7 @@ actor {
       id = variant.id;
       productId = variant.productId;
       variantName = variant.variantName;
+      price = variant.price;
       stockCount = variant.stockCount;
       state = #available;
       lockedBy = null;
@@ -947,6 +974,7 @@ actor {
         id = variant.id;
         productId = variant.productId;
         variantName = variant.variantName;
+        price = variant.price;
         stockCount = newStockCount;
         state = newState;
         lockedBy = null;
@@ -995,6 +1023,7 @@ actor {
         id = variant.id;
         productId = variant.productId;
         variantName = variant.variantName;
+        price = variant.price;
         stockCount = variant.stockCount;
         state = #available;
         lockedBy = null;
@@ -1110,6 +1139,7 @@ actor {
   // =========================
 
   public query func getTimeDiff(time1 : Time.Time, time2 : Time.Time) : async Int {
+    // Public utility function - no authorization required
     time1 - time2;
   };
 };

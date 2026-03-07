@@ -198,7 +198,7 @@ function ProductTile({
         <p className="text-sm font-semibold line-clamp-2 leading-tight mb-1.5">
           {product.name}
         </p>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-1 flex-wrap">
           <Badge
             variant="outline"
             className="text-[10px] px-1.5 py-0 h-4"
@@ -210,6 +210,14 @@ function ProductTile({
           >
             {product.category}
           </Badge>
+          {product.basePrice > 0n && (
+            <span
+              className="text-xs font-semibold"
+              style={{ color: "oklch(0.72 0.18 155)" }}
+            >
+              ₹{(Number(product.basePrice) / 100).toLocaleString("en-IN")}
+            </span>
+          )}
         </div>
       </div>
     </motion.button>

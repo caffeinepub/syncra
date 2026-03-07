@@ -154,6 +154,9 @@ export function CatalogManager() {
             ...data,
             imageUrls: data.imageUrls,
             businessId: business.id,
+            basePrice: BigInt(
+              Math.round(Number.parseFloat(data.basePrice || "0") * 100),
+            ),
           });
           // Add inline variants sequentially
           for (const v of data.variants) {
@@ -162,6 +165,9 @@ export function CatalogManager() {
                 productId,
                 variantName: v.variantName.trim(),
                 stockCount: BigInt(v.stockCount || "0"),
+                price: BigInt(
+                  Math.round(Number.parseFloat(v.price || "0") * 100),
+                ),
               });
             }
           }
@@ -182,6 +188,9 @@ export function CatalogManager() {
               ...data,
               imageUrls: data.imageUrls,
               productId: editingProduct.id,
+              basePrice: BigInt(
+                Math.round(Number.parseFloat(data.basePrice || "0") * 100),
+              ),
             });
             setEditingProduct(null);
           }}
@@ -197,8 +206,10 @@ export function CatalogManager() {
           onClose={() => setManagingVariants(null)}
           onAddVariant={async (data) => {
             await addVariant.mutateAsync({
-              ...data,
               productId: managingVariants.id,
+              variantName: data.variantName,
+              stockCount: data.stockCount,
+              price: data.price,
             });
           }}
           onEditVariant={async (data) => {
@@ -298,6 +309,7 @@ function ProductCard({
 interface InlineVariant {
   variantName: string;
   stockCount: string;
+  price: string;
 }
 
 interface ProductFormData {
@@ -307,6 +319,7 @@ interface ProductFormData {
   description: string;
   imageUrls: ExternalBlob[];
   isActive: boolean;
+  basePrice: string;
   /** Only used on Add (not Edit) */
   variants: InlineVariant[];
 }
@@ -318,6 +331,7 @@ const DEFAULT_FORM: ProductFormData = {
   description: "",
   imageUrls: [],
   isActive: true,
+  basePrice: "",
   variants: [],
 };
 
@@ -343,6 +357,10 @@ function ProductFormDialog({
     description: initialData?.description ?? "",
     imageUrls: initialData?.imageUrls ?? [],
     isActive: initialData?.isActive ?? true,
+    basePrice:
+      initialData?.basePrice && initialData.basePrice > 0n
+        ? (Number(initialData.basePrice) / 100).toString()
+        : "",
     variants: [],
   });
   const [isReadingFiles, setIsReadingFiles] = useState(false);
@@ -352,6 +370,7 @@ function ProductFormDialog({
 
   // New variant input state
   const [newVariantName, setNewVariantName] = useState("");
+  const [newVariantPrice, setNewVariantPrice] = useState("");
   const [newVariantStock, setNewVariantStock] = useState("");
 
   // Reset form when dialog re-opens (key prop on parent handles add-mode resets;
@@ -365,6 +384,7 @@ function ProductFormDialog({
       setLocalPreviews([]);
       setIsReadingFiles(false);
       setNewVariantName("");
+      setNewVariantPrice("");
       setNewVariantStock("");
     }
   }, [open, initialData]);
@@ -373,7 +393,7 @@ function ProductFormDialog({
     (
       key: keyof Pick<
         ProductFormData,
-        "name" | "sku" | "category" | "description"
+        "name" | "sku" | "category" | "description" | "basePrice"
       >,
     ) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -431,10 +451,15 @@ function ProductFormDialog({
       ...f,
       variants: [
         ...f.variants,
-        { variantName: newVariantName.trim(), stockCount: newVariantStock },
+        {
+          variantName: newVariantName.trim(),
+          stockCount: newVariantStock,
+          price: newVariantPrice,
+        },
       ],
     }));
     setNewVariantName("");
+    setNewVariantPrice("");
     setNewVariantStock("");
   };
 
@@ -454,6 +479,7 @@ function ProductFormDialog({
     setLocalPreviews([]);
     setIsReadingFiles(false);
     setNewVariantName("");
+    setNewVariantPrice("");
     setNewVariantStock("");
     onClose();
   };
@@ -503,6 +529,26 @@ function ProductFormDialog({
                 placeholder="Product description for salesmen to reference..."
                 className="bg-input/50 resize-none h-24"
               />
+            </Field>
+
+            <Field label="Base Price (₹)">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                  ₹
+                </span>
+                <Input
+                  type="number"
+                  value={form.basePrice}
+                  onChange={set("basePrice")}
+                  placeholder="e.g. 499"
+                  className="pl-7 bg-input/50"
+                  min={0}
+                  step={1}
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground/70 mt-1">
+                Default price shown to salesmen. You can override per variant.
+              </p>
             </Field>
 
             {/* Image upload */}
@@ -585,6 +631,18 @@ function ProductFormDialog({
                         <span className="flex-1 text-sm font-medium truncate">
                           {v.variantName}
                         </span>
+                        {v.price ? (
+                          <span
+                            className="text-xs font-semibold shrink-0"
+                            style={{ color: "oklch(0.72 0.18 155)" }}
+                          >
+                            ₹{v.price}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/60 shrink-0 italic">
+                            ₹ Base
+                          </span>
+                        )}
                         <span className="text-xs text-muted-foreground shrink-0">
                           Qty: {v.stockCount || "0"}
                         </span>
@@ -601,12 +659,12 @@ function ProductFormDialog({
                 )}
 
                 {/* Add new variant row */}
-                <div className="flex gap-2 items-center">
+                <div className="flex gap-2 items-center flex-wrap">
                   <Input
                     placeholder="Variant (e.g. Size M)"
                     value={newVariantName}
                     onChange={(e) => setNewVariantName(e.target.value)}
-                    className="h-8 text-sm bg-input/50 flex-1"
+                    className="h-8 text-sm bg-input/50 flex-1 min-w-28"
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
@@ -614,12 +672,31 @@ function ProductFormDialog({
                       }
                     }}
                   />
+                  <div className="relative w-24 shrink-0">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">
+                      ₹
+                    </span>
+                    <Input
+                      type="number"
+                      placeholder="Price"
+                      value={newVariantPrice}
+                      onChange={(e) => setNewVariantPrice(e.target.value)}
+                      className="h-8 text-sm bg-input/50 pl-5"
+                      min={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addInlineVariant();
+                        }
+                      }}
+                    />
+                  </div>
                   <Input
                     type="number"
                     placeholder="Qty"
                     value={newVariantStock}
                     onChange={(e) => setNewVariantStock(e.target.value)}
-                    className="h-8 text-sm bg-input/50 w-20 shrink-0"
+                    className="h-8 text-sm bg-input/50 w-16 shrink-0"
                     min={0}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
@@ -640,8 +717,8 @@ function ProductFormDialog({
                   </Button>
                 </div>
                 <p className="text-[11px] text-muted-foreground/70 mt-1.5">
-                  Add all sizes/colours before saving. You can also manage
-                  variants later from the product card.
+                  Leave price blank to use the base price for that variant. Add
+                  all sizes/colours before saving.
                 </p>
               </div>
             )}
@@ -697,22 +774,29 @@ function VariantManagerDialog({
   onAddVariant: (data: {
     variantName: string;
     stockCount: bigint;
+    price: bigint;
   }) => Promise<void>;
   onEditVariant: (data: {
     variantId: bigint;
     variantName: string;
     stockCount: bigint;
+    price: bigint;
   }) => Promise<void>;
   addPending: boolean;
   editPending: boolean;
 }) {
   const { data: variants, isLoading } = useProductVariants(product.id);
   const resetVariant = useResetVariantToAvailable();
-  const [newVariant, setNewVariant] = useState({ name: "", stock: "" });
+  const [newVariant, setNewVariant] = useState({
+    name: "",
+    stock: "",
+    price: "",
+  });
   const [editingVariant, setEditingVariant] = useState<{
     id: bigint;
     name: string;
     stock: string;
+    price: string;
   } | null>(null);
 
   return (
@@ -744,7 +828,7 @@ function VariantManagerDialog({
                       key={v.id.toString()}
                       className="glass-card rounded-lg p-3 space-y-2"
                     >
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-3 gap-2">
                         <Input
                           value={editingVariant.name}
                           onChange={(e) =>
@@ -755,6 +839,23 @@ function VariantManagerDialog({
                           className="h-8 text-sm bg-input/50"
                           placeholder="Variant name"
                         />
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">
+                            ₹
+                          </span>
+                          <Input
+                            type="number"
+                            value={editingVariant.price}
+                            onChange={(e) =>
+                              setEditingVariant(
+                                (ev) => ev && { ...ev, price: e.target.value },
+                              )
+                            }
+                            className="h-8 text-sm bg-input/50 pl-5"
+                            placeholder="Price"
+                            min={0}
+                          />
+                        </div>
                         <Input
                           type="number"
                           value={editingVariant.stock}
@@ -778,6 +879,13 @@ function VariantManagerDialog({
                               variantId: v.id,
                               variantName: editingVariant.name,
                               stockCount: BigInt(editingVariant.stock || "0"),
+                              price: BigInt(
+                                Math.round(
+                                  Number.parseFloat(
+                                    editingVariant.price || "0",
+                                  ) * 100,
+                                ),
+                              ),
                             }).then(() => setEditingVariant(null))
                           }
                           style={{
@@ -814,6 +922,18 @@ function VariantManagerDialog({
                           <span className="text-xs text-muted-foreground">
                             Stock: {v.stockCount.toString()}
                           </span>
+                          {v.price > 0n ? (
+                            <span
+                              className="text-xs font-semibold"
+                              style={{ color: "oklch(0.72 0.18 155)" }}
+                            >
+                              ₹{(Number(v.price) / 100).toLocaleString("en-IN")}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground/60 italic">
+                              ₹ Base
+                            </span>
+                          )}
                           <ProductStateBadge
                             state={v.state}
                             stockCount={v.stockCount}
@@ -846,6 +966,10 @@ function VariantManagerDialog({
                               id: v.id,
                               name: v.variantName,
                               stock: v.stockCount.toString(),
+                              price:
+                                v.price > 0n
+                                  ? (Number(v.price) / 100).toString()
+                                  : "",
                             })
                           }
                           className="p-1.5 rounded hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
@@ -865,7 +989,7 @@ function VariantManagerDialog({
             <p className="text-xs font-medium text-muted-foreground mb-2">
               Add New Variant
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <Input
                 placeholder="e.g. Size M"
                 value={newVariant.name}
@@ -874,6 +998,21 @@ function VariantManagerDialog({
                 }
                 className="h-8 text-sm bg-input/50"
               />
+              <div className="relative">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">
+                  ₹
+                </span>
+                <Input
+                  type="number"
+                  placeholder="Price"
+                  value={newVariant.price}
+                  onChange={(e) =>
+                    setNewVariant((v) => ({ ...v, price: e.target.value }))
+                  }
+                  className="h-8 text-sm bg-input/50 pl-5"
+                  min={0}
+                />
+              </div>
               <Input
                 type="number"
                 placeholder="Stock qty"
@@ -885,6 +1024,9 @@ function VariantManagerDialog({
                 min={0}
               />
             </div>
+            <p className="text-[11px] text-muted-foreground/60 mt-1">
+              Leave price blank to use the product&apos;s base price.
+            </p>
             <Button
               size="sm"
               className="mt-2 w-full h-8 text-xs gap-1.5"
@@ -893,7 +1035,12 @@ function VariantManagerDialog({
                 void onAddVariant({
                   variantName: newVariant.name,
                   stockCount: BigInt(newVariant.stock || "0"),
-                }).then(() => setNewVariant({ name: "", stock: "" }))
+                  price: BigInt(
+                    Math.round(
+                      Number.parseFloat(newVariant.price || "0") * 100,
+                    ),
+                  ),
+                }).then(() => setNewVariant({ name: "", stock: "", price: "" }))
               }
               style={{
                 background: "oklch(0.72 0.14 195)",

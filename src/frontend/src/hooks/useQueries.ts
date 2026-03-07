@@ -190,6 +190,7 @@ export function useAddProduct() {
       description: string;
       imageUrls: ExternalBlob[];
       isActive: boolean;
+      basePrice: bigint;
     }) => {
       if (!actor) throw new Error("Not connected");
       return actor.addProduct(
@@ -198,6 +199,7 @@ export function useAddProduct() {
         params.sku,
         params.category,
         params.description,
+        params.basePrice,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         params.imageUrls as any[],
         params.isActive,
@@ -228,6 +230,7 @@ export function useEditProduct() {
       description: string;
       imageUrls: ExternalBlob[];
       isActive: boolean;
+      basePrice: bigint;
     }) => {
       if (!actor) throw new Error("Not connected");
       return actor.editProduct(
@@ -236,6 +239,7 @@ export function useEditProduct() {
         params.sku,
         params.category,
         params.description,
+        params.basePrice,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         params.imageUrls as any[],
         params.isActive,
@@ -262,11 +266,13 @@ export function useAddVariant() {
       productId: bigint;
       variantName: string;
       stockCount: bigint;
+      price: bigint;
     }) => {
       if (!actor) throw new Error("Not connected");
       return actor.addProductVariant(
         params.productId,
         params.variantName,
+        params.price,
         params.stockCount,
         ProductState.available,
       );
@@ -289,11 +295,13 @@ export function useEditVariant() {
       variantId: bigint;
       variantName: string;
       stockCount: bigint;
+      price: bigint;
     }) => {
       if (!actor) throw new Error("Not connected");
       return actor.editProductVariant(
         params.variantId,
         params.variantName,
+        params.price,
         params.stockCount,
       );
     },

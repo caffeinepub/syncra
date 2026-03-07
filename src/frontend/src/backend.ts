@@ -132,6 +132,7 @@ export interface ProductVariant {
     stockCount: bigint;
     state: ProductState;
     lockedBy?: bigint;
+    price: bigint;
 }
 export interface SalesmanActivityLog {
     action: string;
@@ -157,6 +158,7 @@ export interface Product {
     description: string;
     isActive: boolean;
     category: string;
+    basePrice: bigint;
 }
 export interface UserProfile {
     principal: Principal;
@@ -212,14 +214,14 @@ export interface backendInterface {
     _caffeineStorageRefillCashier(refillInformation: _CaffeineStorageRefillInformation | null): Promise<_CaffeineStorageRefillResult>;
     _caffeineStorageUpdateGatewayPrincipals(): Promise<void>;
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
-    addProduct(businessId: bigint, name: string, sku: string, category: string, description: string, imageUrls: Array<ExternalBlob>, isActive: boolean): Promise<bigint>;
-    addProductVariant(productId: bigint, variantName: string, stockCount: bigint, state: ProductState): Promise<bigint>;
+    addProduct(businessId: bigint, name: string, sku: string, category: string, description: string, basePrice: bigint, imageUrls: Array<ExternalBlob>, isActive: boolean): Promise<bigint>;
+    addProductVariant(productId: bigint, variantName: string, price: bigint, stockCount: bigint, state: ProductState): Promise<bigint>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     cancelBill(billId: bigint): Promise<void>;
     createBillToken(businessId: bigint, items: Array<BillItem>, totalAmount: bigint): Promise<bigint>;
     deactivateSalesman(salesmanUserId: bigint): Promise<void>;
-    editProduct(productId: bigint, name: string, sku: string, category: string, description: string, imageUrls: Array<ExternalBlob>, isActive: boolean): Promise<void>;
-    editProductVariant(variantId: bigint, variantName: string, stockCount: bigint): Promise<void>;
+    editProduct(productId: bigint, name: string, sku: string, category: string, description: string, basePrice: bigint, imageUrls: Array<ExternalBlob>, isActive: boolean): Promise<void>;
+    editProductVariant(variantId: bigint, variantName: string, price: bigint, stockCount: bigint): Promise<void>;
     finalizeBill(billId: bigint): Promise<void>;
     getActivityLogs(businessId: bigint): Promise<Array<SalesmanActivityLog>>;
     getAllBills(): Promise<Array<BillToken>>;
@@ -351,31 +353,31 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async addProduct(arg0: bigint, arg1: string, arg2: string, arg3: string, arg4: string, arg5: Array<ExternalBlob>, arg6: boolean): Promise<bigint> {
+    async addProduct(arg0: bigint, arg1: string, arg2: string, arg3: string, arg4: string, arg5: bigint, arg6: Array<ExternalBlob>, arg7: boolean): Promise<bigint> {
         if (this.processError) {
             try {
-                const result = await this.actor.addProduct(arg0, arg1, arg2, arg3, arg4, await to_candid_vec_n8(this._uploadFile, this._downloadFile, arg5), arg6);
+                const result = await this.actor.addProduct(arg0, arg1, arg2, arg3, arg4, arg5, await to_candid_vec_n8(this._uploadFile, this._downloadFile, arg6), arg7);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.addProduct(arg0, arg1, arg2, arg3, arg4, await to_candid_vec_n8(this._uploadFile, this._downloadFile, arg5), arg6);
+            const result = await this.actor.addProduct(arg0, arg1, arg2, arg3, arg4, arg5, await to_candid_vec_n8(this._uploadFile, this._downloadFile, arg6), arg7);
             return result;
         }
     }
-    async addProductVariant(arg0: bigint, arg1: string, arg2: bigint, arg3: ProductState): Promise<bigint> {
+    async addProductVariant(arg0: bigint, arg1: string, arg2: bigint, arg3: bigint, arg4: ProductState): Promise<bigint> {
         if (this.processError) {
             try {
-                const result = await this.actor.addProductVariant(arg0, arg1, arg2, to_candid_ProductState_n10(this._uploadFile, this._downloadFile, arg3));
+                const result = await this.actor.addProductVariant(arg0, arg1, arg2, arg3, to_candid_ProductState_n10(this._uploadFile, this._downloadFile, arg4));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.addProductVariant(arg0, arg1, arg2, to_candid_ProductState_n10(this._uploadFile, this._downloadFile, arg3));
+            const result = await this.actor.addProductVariant(arg0, arg1, arg2, arg3, to_candid_ProductState_n10(this._uploadFile, this._downloadFile, arg4));
             return result;
         }
     }
@@ -435,31 +437,31 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async editProduct(arg0: bigint, arg1: string, arg2: string, arg3: string, arg4: string, arg5: Array<ExternalBlob>, arg6: boolean): Promise<void> {
+    async editProduct(arg0: bigint, arg1: string, arg2: string, arg3: string, arg4: string, arg5: bigint, arg6: Array<ExternalBlob>, arg7: boolean): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.editProduct(arg0, arg1, arg2, arg3, arg4, await to_candid_vec_n8(this._uploadFile, this._downloadFile, arg5), arg6);
+                const result = await this.actor.editProduct(arg0, arg1, arg2, arg3, arg4, arg5, await to_candid_vec_n8(this._uploadFile, this._downloadFile, arg6), arg7);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.editProduct(arg0, arg1, arg2, arg3, arg4, await to_candid_vec_n8(this._uploadFile, this._downloadFile, arg5), arg6);
+            const result = await this.actor.editProduct(arg0, arg1, arg2, arg3, arg4, arg5, await to_candid_vec_n8(this._uploadFile, this._downloadFile, arg6), arg7);
             return result;
         }
     }
-    async editProductVariant(arg0: bigint, arg1: string, arg2: bigint): Promise<void> {
+    async editProductVariant(arg0: bigint, arg1: string, arg2: bigint, arg3: bigint): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.editProductVariant(arg0, arg1, arg2);
+                const result = await this.actor.editProductVariant(arg0, arg1, arg2, arg3);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.editProductVariant(arg0, arg1, arg2);
+            const result = await this.actor.editProductVariant(arg0, arg1, arg2, arg3);
             return result;
         }
     }
@@ -994,6 +996,7 @@ function from_candid_record_n29(_uploadFile: (file: ExternalBlob) => Promise<Uin
     stockCount: bigint;
     state: _ProductState;
     lockedBy: [] | [bigint];
+    price: bigint;
 }): {
     id: bigint;
     variantName: string;
@@ -1001,6 +1004,7 @@ function from_candid_record_n29(_uploadFile: (file: ExternalBlob) => Promise<Uin
     stockCount: bigint;
     state: ProductState;
     lockedBy?: bigint;
+    price: bigint;
 } {
     return {
         id: value.id,
@@ -1008,7 +1012,8 @@ function from_candid_record_n29(_uploadFile: (file: ExternalBlob) => Promise<Uin
         productId: value.productId,
         stockCount: value.stockCount,
         state: from_candid_ProductState_n30(_uploadFile, _downloadFile, value.state),
-        lockedBy: record_opt_to_undefined(from_candid_opt_n7(_uploadFile, _downloadFile, value.lockedBy))
+        lockedBy: record_opt_to_undefined(from_candid_opt_n7(_uploadFile, _downloadFile, value.lockedBy)),
+        price: value.price
     };
 }
 async function from_candid_record_n34(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
@@ -1020,6 +1025,7 @@ async function from_candid_record_n34(_uploadFile: (file: ExternalBlob) => Promi
     description: string;
     isActive: boolean;
     category: string;
+    basePrice: bigint;
 }): Promise<{
     id: bigint;
     sku: string;
@@ -1029,6 +1035,7 @@ async function from_candid_record_n34(_uploadFile: (file: ExternalBlob) => Promi
     description: string;
     isActive: boolean;
     category: string;
+    basePrice: bigint;
 }> {
     return {
         id: value.id,
@@ -1038,7 +1045,8 @@ async function from_candid_record_n34(_uploadFile: (file: ExternalBlob) => Promi
         name: value.name,
         description: value.description,
         isActive: value.isActive,
-        category: value.category
+        category: value.category,
+        basePrice: value.basePrice
     };
 }
 function from_candid_record_n39(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {

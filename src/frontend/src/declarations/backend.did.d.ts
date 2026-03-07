@@ -54,6 +54,7 @@ export interface Product {
   'description' : string,
   'isActive' : boolean,
   'category' : string,
+  'basePrice' : bigint,
 }
 export type ProductState = { 'sold' : null } |
   { 'locked' : null } |
@@ -65,6 +66,7 @@ export interface ProductVariant {
   'stockCount' : bigint,
   'state' : ProductState,
   'lockedBy' : [] | [bigint],
+  'price' : bigint,
 }
 export type Role = { 'salesman' : null } |
   { 'owner' : null };
@@ -130,11 +132,20 @@ export interface _SERVICE {
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'addProduct' : ActorMethod<
-    [bigint, string, string, string, string, Array<ExternalBlob>, boolean],
+    [
+      bigint,
+      string,
+      string,
+      string,
+      string,
+      bigint,
+      Array<ExternalBlob>,
+      boolean,
+    ],
     bigint
   >,
   'addProductVariant' : ActorMethod<
-    [bigint, string, bigint, ProductState],
+    [bigint, string, bigint, bigint, ProductState],
     bigint
   >,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
@@ -142,10 +153,22 @@ export interface _SERVICE {
   'createBillToken' : ActorMethod<[bigint, Array<BillItem>, bigint], bigint>,
   'deactivateSalesman' : ActorMethod<[bigint], undefined>,
   'editProduct' : ActorMethod<
-    [bigint, string, string, string, string, Array<ExternalBlob>, boolean],
+    [
+      bigint,
+      string,
+      string,
+      string,
+      string,
+      bigint,
+      Array<ExternalBlob>,
+      boolean,
+    ],
     undefined
   >,
-  'editProductVariant' : ActorMethod<[bigint, string, bigint], undefined>,
+  'editProductVariant' : ActorMethod<
+    [bigint, string, bigint, bigint],
+    undefined
+  >,
   'finalizeBill' : ActorMethod<[bigint], undefined>,
   'getActivityLogs' : ActorMethod<[bigint], Array<SalesmanActivityLog>>,
   'getAllBills' : ActorMethod<[], Array<BillToken>>,

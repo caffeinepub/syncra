@@ -86,6 +86,7 @@ export const ProductVariant = IDL.Record({
   'stockCount' : IDL.Nat,
   'state' : ProductState,
   'lockedBy' : IDL.Opt(IDL.Nat),
+  'price' : IDL.Nat,
 });
 export const Product = IDL.Record({
   'id' : IDL.Nat,
@@ -96,6 +97,7 @@ export const Product = IDL.Record({
   'description' : IDL.Text,
   'isActive' : IDL.Bool,
   'category' : IDL.Text,
+  'basePrice' : IDL.Nat,
 });
 export const Role = IDL.Variant({ 'salesman' : IDL.Null, 'owner' : IDL.Null });
 export const UserProfile = IDL.Record({
@@ -157,6 +159,7 @@ export const idlService = IDL.Service({
         IDL.Text,
         IDL.Text,
         IDL.Text,
+        IDL.Nat,
         IDL.Vec(ExternalBlob),
         IDL.Bool,
       ],
@@ -164,7 +167,7 @@ export const idlService = IDL.Service({
       [],
     ),
   'addProductVariant' : IDL.Func(
-      [IDL.Nat, IDL.Text, IDL.Nat, ProductState],
+      [IDL.Nat, IDL.Text, IDL.Nat, IDL.Nat, ProductState],
       [IDL.Nat],
       [],
     ),
@@ -183,13 +186,18 @@ export const idlService = IDL.Service({
         IDL.Text,
         IDL.Text,
         IDL.Text,
+        IDL.Nat,
         IDL.Vec(ExternalBlob),
         IDL.Bool,
       ],
       [],
       [],
     ),
-  'editProductVariant' : IDL.Func([IDL.Nat, IDL.Text, IDL.Nat], [], []),
+  'editProductVariant' : IDL.Func(
+      [IDL.Nat, IDL.Text, IDL.Nat, IDL.Nat],
+      [],
+      [],
+    ),
   'finalizeBill' : IDL.Func([IDL.Nat], [], []),
   'getActivityLogs' : IDL.Func(
       [IDL.Nat],
@@ -330,6 +338,7 @@ export const idlFactory = ({ IDL }) => {
     'stockCount' : IDL.Nat,
     'state' : ProductState,
     'lockedBy' : IDL.Opt(IDL.Nat),
+    'price' : IDL.Nat,
   });
   const Product = IDL.Record({
     'id' : IDL.Nat,
@@ -340,6 +349,7 @@ export const idlFactory = ({ IDL }) => {
     'description' : IDL.Text,
     'isActive' : IDL.Bool,
     'category' : IDL.Text,
+    'basePrice' : IDL.Nat,
   });
   const Role = IDL.Variant({ 'salesman' : IDL.Null, 'owner' : IDL.Null });
   const UserProfile = IDL.Record({
@@ -401,6 +411,7 @@ export const idlFactory = ({ IDL }) => {
           IDL.Text,
           IDL.Text,
           IDL.Text,
+          IDL.Nat,
           IDL.Vec(ExternalBlob),
           IDL.Bool,
         ],
@@ -408,7 +419,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'addProductVariant' : IDL.Func(
-        [IDL.Nat, IDL.Text, IDL.Nat, ProductState],
+        [IDL.Nat, IDL.Text, IDL.Nat, IDL.Nat, ProductState],
         [IDL.Nat],
         [],
       ),
@@ -427,13 +438,18 @@ export const idlFactory = ({ IDL }) => {
           IDL.Text,
           IDL.Text,
           IDL.Text,
+          IDL.Nat,
           IDL.Vec(ExternalBlob),
           IDL.Bool,
         ],
         [],
         [],
       ),
-    'editProductVariant' : IDL.Func([IDL.Nat, IDL.Text, IDL.Nat], [], []),
+    'editProductVariant' : IDL.Func(
+        [IDL.Nat, IDL.Text, IDL.Nat, IDL.Nat],
+        [],
+        [],
+      ),
     'finalizeBill' : IDL.Func([IDL.Nat], [], []),
     'getActivityLogs' : IDL.Func(
         [IDL.Nat],

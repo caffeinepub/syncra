@@ -171,6 +171,29 @@ export function ProductDetailPage({ product, onBack }: Props) {
     (v) => lockedItems[v.id.toString()] !== undefined,
   );
 
+  // Pre-populate prices when the bill modal opens
+  const basePrice = product.basePrice;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally runs only on modal open
+  useEffect(() => {
+    if (showBillModal && myLockedVariants.length > 0) {
+      setItemPrices((prev) => {
+        const next = { ...prev };
+        for (const v of myLockedVariants) {
+          const key = v.id.toString();
+          // Only pre-fill if the salesman hasn't already typed a custom price
+          if (!next[key]) {
+            const effectivePrice = v.price > 0n ? v.price : basePrice;
+            next[key] =
+              effectivePrice > 0n
+                ? (Number(effectivePrice) / 100).toString()
+                : "";
+          }
+        }
+        return next;
+      });
+    }
+  }, [showBillModal]);
+
   const handleGenerateBill = async () => {
     if (!userProfile?.businessId) return;
     const items = myLockedVariants.map((v) => ({
@@ -486,42 +509,59 @@ export function ProductDetailPage({ product, onBack }: Props) {
           </DialogHeader>
           <div className="space-y-3 py-2">
             <p className="text-sm text-muted-foreground">
-              Enter the price for each item
+              Review or adjust the price for each item
             </p>
             <ScrollArea className="max-h-60">
-              <div className="space-y-3 pr-1">
-                {myLockedVariants.map((v) => (
-                  <div
-                    key={v.id.toString()}
-                    className="flex items-center gap-3"
-                  >
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{v.variantName}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Qty: {lockedItems[v.id.toString()] ?? 1}
-                      </p>
+              <div className="space-y-4 pr-1">
+                {myLockedVariants.map((v) => {
+                  const hasVariantPrice = v.price > 0n;
+                  const hasBasePrice = product.basePrice > 0n;
+                  return (
+                    <div key={v.id.toString()} className="space-y-1">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{v.variantName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Qty: {lockedItems[v.id.toString()] ?? 1}
+                          </p>
+                        </div>
+                        <div className="relative w-28">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                            ₹
+                          </span>
+                          <Input
+                            type="number"
+                            className="pl-6 h-8 text-sm bg-input/50"
+                            placeholder="0"
+                            value={itemPrices[v.id.toString()] ?? ""}
+                            onChange={(e) =>
+                              setItemPrices((p) => ({
+                                ...p,
+                                [v.id.toString()]: e.target.value,
+                              }))
+                            }
+                            min={0}
+                            step={1}
+                          />
+                        </div>
+                      </div>
+                      {/* Price hint */}
+                      {hasVariantPrice ? (
+                        <p className="text-[11px] text-muted-foreground/60 text-right">
+                          Listed: ₹
+                          {(Number(v.price) / 100).toLocaleString("en-IN")}
+                        </p>
+                      ) : hasBasePrice ? (
+                        <p className="text-[11px] text-muted-foreground/60 text-right">
+                          Base price: ₹
+                          {(Number(product.basePrice) / 100).toLocaleString(
+                            "en-IN",
+                          )}
+                        </p>
+                      ) : null}
                     </div>
-                    <div className="relative w-28">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                        ₹
-                      </span>
-                      <Input
-                        type="number"
-                        className="pl-6 h-8 text-sm bg-input/50"
-                        placeholder="0"
-                        value={itemPrices[v.id.toString()] ?? ""}
-                        onChange={(e) =>
-                          setItemPrices((p) => ({
-                            ...p,
-                            [v.id.toString()]: e.target.value,
-                          }))
-                        }
-                        min={0}
-                        step={1}
-                      />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </ScrollArea>
             <div className="border-t border-border/50 pt-2 flex items-center justify-between">

@@ -46,6 +46,7 @@ export interface ProductVariant {
     stockCount: bigint;
     state: ProductState;
     lockedBy?: bigint;
+    price: bigint;
 }
 export interface SalesmanActivityLog {
     action: string;
@@ -71,6 +72,7 @@ export interface Product {
     description: string;
     isActive: boolean;
     category: string;
+    basePrice: bigint;
 }
 export interface UserProfile {
     principal: Principal;
@@ -119,14 +121,14 @@ export enum UserRole {
     guest = "guest"
 }
 export interface backendInterface {
-    addProduct(businessId: bigint, name: string, sku: string, category: string, description: string, imageUrls: Array<ExternalBlob>, isActive: boolean): Promise<bigint>;
-    addProductVariant(productId: bigint, variantName: string, stockCount: bigint, state: ProductState): Promise<bigint>;
+    addProduct(businessId: bigint, name: string, sku: string, category: string, description: string, basePrice: bigint, imageUrls: Array<ExternalBlob>, isActive: boolean): Promise<bigint>;
+    addProductVariant(productId: bigint, variantName: string, price: bigint, stockCount: bigint, state: ProductState): Promise<bigint>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     cancelBill(billId: bigint): Promise<void>;
     createBillToken(businessId: bigint, items: Array<BillItem>, totalAmount: bigint): Promise<bigint>;
     deactivateSalesman(salesmanUserId: bigint): Promise<void>;
-    editProduct(productId: bigint, name: string, sku: string, category: string, description: string, imageUrls: Array<ExternalBlob>, isActive: boolean): Promise<void>;
-    editProductVariant(variantId: bigint, variantName: string, stockCount: bigint): Promise<void>;
+    editProduct(productId: bigint, name: string, sku: string, category: string, description: string, basePrice: bigint, imageUrls: Array<ExternalBlob>, isActive: boolean): Promise<void>;
+    editProductVariant(variantId: bigint, variantName: string, price: bigint, stockCount: bigint): Promise<void>;
     finalizeBill(billId: bigint): Promise<void>;
     getActivityLogs(businessId: bigint): Promise<Array<SalesmanActivityLog>>;
     getAllBills(): Promise<Array<BillToken>>;
