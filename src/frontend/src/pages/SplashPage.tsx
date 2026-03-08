@@ -20,20 +20,17 @@ export function SplashPage() {
     return null;
   });
 
-  // After 3s we stop blocking the button on isInitializing
+  // Hard 3-second timeout from mount — fires once, never resets on isInitializing flickers
   const [authTimedOut, setAuthTimedOut] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timerScheduledRef = useRef(false);
 
   useEffect(() => {
-    if (isInitializing && !authTimedOut) {
-      timerRef.current = setTimeout(() => setAuthTimedOut(true), 3000);
-    } else if (!isInitializing) {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    }
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [isInitializing, authTimedOut]);
+    if (timerScheduledRef.current) return;
+    timerScheduledRef.current = true;
+    const t = setTimeout(() => setAuthTimedOut(true), 3000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleRoleSelect = (role: RoleChoice) => {
     setSelectedRole(role);

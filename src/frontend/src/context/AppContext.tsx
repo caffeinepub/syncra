@@ -38,22 +38,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [view, setView] = useState<AppView>("splash");
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
-  // After 3 seconds we stop waiting for auth init regardless — prevents permanent hang
+  // Hard 3-second timeout from FIRST mount — prevents infinite "initializing" loops
+  // caused by the auth hook re-running when authClient state changes.
+  // We use a ref so this timer is only ever scheduled once.
   const [authTimedOut, setAuthTimedOut] = useState(false);
-  const authTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const authTimeoutScheduledRef = useRef(false);
 
   useEffect(() => {
-    if (isInitializing && !authTimedOut) {
-      authTimeoutRef.current = setTimeout(() => setAuthTimedOut(true), 3000);
-    } else if (!isInitializing) {
-      // Clear the timer but do NOT reset authTimedOut — resetting it
-      // causes the timer to fire again on the next isInitializing flicker.
-      if (authTimeoutRef.current) clearTimeout(authTimeoutRef.current);
-    }
-    return () => {
-      if (authTimeoutRef.current) clearTimeout(authTimeoutRef.current);
-    };
-  }, [isInitializing, authTimedOut]);
+    if (authTimeoutScheduledRef.current) return;
+    authTimeoutScheduledRef.current = true;
+    const t = setTimeout(() => setAuthTimedOut(true), 3000);
+    return () => clearTimeout(t);
+    // Intentionally empty deps — fire once on mount only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Consider identity "stable" if auth is done OR we've timed out
   const identityStable = !isInitializing || authTimedOut;

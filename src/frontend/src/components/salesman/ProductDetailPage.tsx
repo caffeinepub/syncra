@@ -29,6 +29,7 @@ import type {
   ProductVariant,
   UserProfile,
 } from "../../backend.d";
+import type { CartItem } from "./BillReviewSheet";
 
 /** Safely get a display URL from an ExternalBlob that may be a plain object after cache rehydration */
 function safeGetURL(blob: ExternalBlob): string {
@@ -55,9 +56,16 @@ import {
 interface Props {
   product: Product;
   onBack: () => void;
+  cartItems: CartItem[];
+  setCartItems: (items: CartItem[]) => void;
 }
 
-export function ProductDetailPage({ product, onBack }: Props) {
+export function ProductDetailPage({
+  product,
+  onBack,
+  cartItems,
+  setCartItems,
+}: Props) {
   const { userProfile } = useAppContext();
   const { actor } = useActor();
   const { data: variants, isLoading } = useProductVariants(product.id);
@@ -65,8 +73,17 @@ export function ProductDetailPage({ product, onBack }: Props) {
   const releaseMutation = useReleaseVariant();
   const createBill = useCreateBillToken();
 
-  // Store quantity locked per variant (0 = not locked by me)
-  const [lockedItems, setLockedItems] = useState<Record<string, number>>({});
+  // Derive locked items for THIS product from the shared cart
+  const myCartForProduct = cartItems.filter(
+    (ci) => ci.productId === product.id,
+  );
+
+  // lockedItems is a map of variantId -> quantity, derived from cart
+  const lockedItems: Record<string, number> = {};
+  for (const ci of myCartForProduct) {
+    lockedItems[ci.variantId.toString()] = ci.quantity;
+  }
+
   const [showBillModal, setShowBillModal] = useState(false);
   const [itemPrices, setItemPrices] = useState<Record<string, string>>({});
 
@@ -152,12 +169,9 @@ export function ProductDetailPage({ product, onBack }: Props) {
     }
 
     if (isMyLock || isMyLocalLock) {
-      // Release lock
-      setLockedItems((prev) => {
-        const next = { ...prev };
-        delete next[variant.id.toString()];
-        return next;
-      });
+      // Release lock — remove from shared cart
+      const updatedCart = cartItems.filter((ci) => ci.variantId !== variant.id);
+      setCartItems(updatedCart);
       await releaseMutation.mutateAsync(variant.id);
     } else {
       // Show quantity selector
@@ -210,7 +224,8 @@ export function ProductDetailPage({ product, onBack }: Props) {
       totalAmount: total,
     });
     setShowBillModal(false);
-    setLockedItems({});
+    // Clear only this product's items from the shared cart
+    setCartItems(cartItems.filter((ci) => ci.productId !== product.id));
     onBack();
   };
 
@@ -477,13 +492,36 @@ export function ProductDetailPage({ product, onBack }: Props) {
                   setLockQty(1);
                   try {
                     await lockMutation.mutateAsync(variantToLock.id);
-                    setLockedItems((prev) => ({
-                      ...prev,
-                      [variantToLock.id.toString()]: qty,
-                    }));
+                    // Compute price: variant price > 0 ? variant price : base price (in rupees)
+                    const effectivePrice =
+                      variantToLock.price > 0n
+                        ? Number(variantToLock.price) / 100
+                        : Number(product.basePrice) / 100;
+
+                    // Add to shared cart (or update if already exists)
+                    const existingIdx = cartItems.findIndex(
+                      (ci) => ci.variantId === variantToLock.id,
+                    );
+                    if (existingIdx >= 0) {
+                      const updated = cartItems.map((ci, i) =>
+                        i === existingIdx ? { ...ci, quantity: qty } : ci,
+                      );
+                      setCartItems(updated);
+                    } else {
+                      setCartItems([
+                        ...cartItems,
+                        {
+                          variantId: variantToLock.id,
+                          productId: product.id,
+                          productName: product.name,
+                          variantName: variantToLock.variantName,
+                          quantity: qty,
+                          price: effectivePrice,
+                        },
+                      ]);
+                    }
                   } catch {
                     // error toast already shown by useLockVariant onError
-                    // refetch so UI reflects actual state
                     void qc.invalidateQueries({ queryKey: ["variants"] });
                   }
                 }}

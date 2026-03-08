@@ -8,7 +8,7 @@ import Order "mo:core/Order";
 import Principal "mo:core/Principal";
 import Iter "mo:core/Iter";
 import Runtime "mo:core/Runtime";
-import Migration "migration";
+
 
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
@@ -16,7 +16,7 @@ import Storage "blob-storage/Storage";
 import MixinStorage "blob-storage/Mixin";
 
 // Apply migration on upgrade
-(with migration = Migration.run)
+
 actor {
   // =========================
   // Types/Modules/State

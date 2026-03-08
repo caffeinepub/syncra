@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { Loader2 } from "lucide-react";
 import { AnimatePresence } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SyncraLogo } from "./components/shared/SyncraLogo";
 import { AppProvider, useAppContext } from "./context/AppContext";
 import { OwnerDashboard } from "./pages/OwnerDashboard";
@@ -12,18 +12,17 @@ import { SplashPage } from "./pages/SplashPage";
 
 function AppRoutes() {
   const { view, isLoadingProfile } = useAppContext();
+  // Hard 3-second timeout from mount — never resets, never allows infinite loading
   const [timedOut, setTimedOut] = useState(false);
+  const timeoutFiredRef = useRef(false);
 
-  // Safety timeout — if loading takes more than 4 seconds, show the app anyway
-  // This prevents permanent blocking due to auth hook re-initialization loops
   useEffect(() => {
-    if (!isLoadingProfile) {
-      setTimedOut(false);
-      return;
-    }
-    const t = setTimeout(() => setTimedOut(true), 4000);
+    if (timeoutFiredRef.current) return;
+    timeoutFiredRef.current = true;
+    const t = setTimeout(() => setTimedOut(true), 3000);
     return () => clearTimeout(t);
-  }, [isLoadingProfile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Global loading state — but never block forever
   if (!timedOut && isLoadingProfile) {
