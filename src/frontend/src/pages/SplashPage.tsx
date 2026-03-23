@@ -46,6 +46,8 @@ export function SplashPage() {
       login();
       return;
     }
+    // Profile might still be loading — don't route yet
+    if (isLoadingProfile) return;
     if (userProfile) {
       if (userProfile.role === "owner") {
         setView("owner-dashboard");
@@ -61,37 +63,6 @@ export function SplashPage() {
     }
   };
 
-  // Auto-navigate only for authenticated NEW users (no profile) with a saved role.
-  // Use a ref so this fires at most once per mount — prevents a re-render loop
-  // where AppContext routes to splash, which re-triggers this effect.
-  const autoNavigatedRef = useRef(false);
-
-  useEffect(() => {
-    if (autoNavigatedRef.current) return;
-    if (
-      identity &&
-      (authTimedOut || !isInitializing) &&
-      !isLoadingProfile &&
-      selectedRole &&
-      !userProfile
-    ) {
-      autoNavigatedRef.current = true;
-      if (selectedRole === "owner") {
-        setView("owner-onboarding");
-      } else if (selectedRole === "salesman") {
-        setView("salesman-activation");
-      }
-    }
-  }, [
-    identity,
-    isInitializing,
-    authTimedOut,
-    isLoadingProfile,
-    selectedRole,
-    userProfile,
-    setView,
-  ]);
-
   // Show spinner while: actively logging in, OR during the first 3s of auth init,
   // OR identity is confirmed but profile data is still loading.
   // Never block forever — authTimedOut breaks the cycle.
@@ -99,6 +70,9 @@ export function SplashPage() {
     isLoggingIn ||
     (!authTimedOut && isInitializing) ||
     (!!identity && isLoadingProfile);
+
+  // Only show "Continue" state when user has both an II session AND a Syncra profile
+  const isReturningUser = !!(identity && userProfile);
 
   return (
     <div className="mesh-bg min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
@@ -211,12 +185,12 @@ export function SplashPage() {
                 )}
                 {isLoading
                   ? "Connecting..."
-                  : identity
+                  : isReturningUser
                     ? "Continue →"
                     : "Connect with Internet Identity"}
               </Button>
               <p className="text-center text-xs text-muted-foreground mt-3">
-                {identity
+                {isReturningUser
                   ? "You're signed in — tap to continue"
                   : "Secured by Internet Computer's decentralized identity"}
               </p>

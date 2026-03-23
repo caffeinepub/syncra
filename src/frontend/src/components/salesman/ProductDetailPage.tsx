@@ -153,6 +153,8 @@ export function ProductDetailPage({
     const isMyLocalLock = lockedItems[variant.id.toString()] !== undefined;
     const isOtherLock =
       variant.state === ProductState.locked &&
+      variant.lockedBy !== undefined &&
+      variant.lockedBy !== null &&
       !(myUserId && variant.lockedBy === myUserId) &&
       !isMyLocalLock;
 
@@ -784,7 +786,11 @@ function VariantTile({
   const isSold =
     variant.state === ProductState.sold && variant.stockCount === BigInt(0);
   const isLocked = variant.state === ProductState.locked;
-  const isOtherLock = isLocked && !isMyLock;
+  const isOtherLock =
+    isLocked &&
+    !isMyLock &&
+    variant.lockedBy !== undefined &&
+    variant.lockedBy !== null;
   // Available = has stock AND (not locked by someone else) AND not truly sold AND not my lock
   const isAvailable = !isOutOfStock && !isOtherLock && !isSold && !isMyLock;
   const isLowStock =

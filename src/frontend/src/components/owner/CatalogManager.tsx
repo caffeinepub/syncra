@@ -28,7 +28,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-// Import the concrete ExternalBlob class for static methods (fromBytes, etc.)
+// Import the concrete ExternalBlob class for static methods (fromBytes, fromURL, etc.)
 import { ExternalBlob as ExternalBlobImpl } from "../../backend";
 import type { ExternalBlob, Product } from "../../backend.d";
 
@@ -184,9 +184,14 @@ export function CatalogManager() {
           onClose={() => setEditingProduct(null)}
           initialData={editingProduct}
           onSubmit={async (data) => {
+            // Convert already-uploaded blobs to fromURL to avoid re-upload errors
+            const safeImageUrls = data.imageUrls.map((blob) => {
+              const url = safeGetURL(blob);
+              return url ? ExternalBlobImpl.fromURL(url) : blob;
+            });
             await editProduct.mutateAsync({
               ...data,
-              imageUrls: data.imageUrls,
+              imageUrls: safeImageUrls,
               productId: editingProduct.id,
               basePrice: BigInt(
                 Math.round(Number.parseFloat(data.basePrice || "0") * 100),
