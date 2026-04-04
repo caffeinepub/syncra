@@ -31,19 +31,8 @@ import { toast } from "sonner";
 // Import the concrete ExternalBlob class for static methods (fromBytes, fromURL, etc.)
 import { ExternalBlob as ExternalBlobImpl } from "../../backend";
 import type { ExternalBlob, Product } from "../../backend.d";
+import { safeGetURL } from "../../utils/blob";
 
-/** Safely get a display URL from an ExternalBlob that may be a plain object after cache rehydration */
-function safeGetURL(blob: ExternalBlob): string {
-  try {
-    if (typeof blob.getDirectURL === "function") return blob.getDirectURL();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const raw = blob as any;
-    if (typeof raw.url === "string") return raw.url;
-    return "";
-  } catch {
-    return "";
-  }
-}
 import { useAppContext } from "../../context/AppContext";
 import { useActor } from "../../hooks/useActor";
 import {

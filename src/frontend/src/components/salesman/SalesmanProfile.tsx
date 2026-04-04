@@ -1,14 +1,28 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { isToday } from "date-fns";
-import { Calendar, Mail, Phone, Receipt, TrendingUp, User } from "lucide-react";
+import {
+  Calendar,
+  LogOut,
+  Mail,
+  Moon,
+  Phone,
+  Receipt,
+  Sun,
+  TrendingUp,
+  User,
+} from "lucide-react";
 import { motion } from "motion/react";
+import { BillStatus } from "../../backend.d";
 import { useAppContext } from "../../context/AppContext";
+import { useInternetIdentity } from "../../hooks/useInternetIdentity";
 import { useBillsForBusiness } from "../../hooks/useQueries";
 
 export function SalesmanProfile() {
-  const { userProfile } = useAppContext();
+  const { userProfile, theme, setTheme } = useAppContext();
+  const { clear } = useInternetIdentity();
   const { data: bills } = useBillsForBusiness(userProfile?.businessId);
 
   const myBills = (bills ?? []).filter(
@@ -16,11 +30,11 @@ export function SalesmanProfile() {
   );
 
   const todayBills = myBills.filter((b) =>
-    isToday(new Date(Number(b.createdAt / BigInt(1_000_000)))),
+    isToday(new Date(Number(b.createdAt) / 1_000_000)),
   );
 
-  const totalEarnings = myBills
-    .filter((b) => b.status === "finalized")
+  const totalRevenue = myBills
+    .filter((b) => b.status === BillStatus.finalized)
     .reduce((acc, b) => acc + b.totalAmount, BigInt(0));
 
   const initials = userProfile?.name
@@ -72,8 +86,8 @@ export function SalesmanProfile() {
                 className="flex items-center gap-1 text-xs"
                 style={{ color: "oklch(0.72 0.18 155)" }}
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
-                Active
+                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                Account Active
               </div>
             )}
           </div>
@@ -95,11 +109,69 @@ export function SalesmanProfile() {
           color="oklch(0.78 0.17 73)"
         />
         <StatCard
-          label="Earnings"
-          value={`₹${Number(totalEarnings / BigInt(100)).toLocaleString("en-IN")}`}
+          label="Revenue Generated"
+          value={`₹${Math.round(Number(totalRevenue) / 100).toLocaleString("en-IN")}`}
           icon={<TrendingUp className="h-4 w-4" />}
           color="oklch(0.72 0.18 155)"
         />
+      </div>
+
+      {/* Theme toggle */}
+      <div className="glass-card rounded-2xl p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {theme === "dark" ? (
+              <Moon className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <Sun className="h-4 w-4 text-muted-foreground" />
+            )}
+            <h3 className="text-sm font-semibold">Theme</h3>
+          </div>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => setTheme("dark")}
+              data-ocid="profile.toggle"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                theme === "dark"
+                  ? ""
+                  : "glass text-muted-foreground hover:text-foreground"
+              }`}
+              style={
+                theme === "dark"
+                  ? {
+                      background: "oklch(0.72 0.14 195)",
+                      color: "oklch(0.08 0.01 264)",
+                    }
+                  : {}
+              }
+            >
+              <Moon className="h-3.5 w-3.5" />
+              Dark
+            </button>
+            <button
+              type="button"
+              onClick={() => setTheme("light")}
+              data-ocid="profile.toggle"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                theme === "light"
+                  ? ""
+                  : "glass text-muted-foreground hover:text-foreground"
+              }`}
+              style={
+                theme === "light"
+                  ? {
+                      background: "oklch(0.72 0.14 195)",
+                      color: "oklch(0.08 0.01 264)",
+                    }
+                  : {}
+              }
+            >
+              <Sun className="h-3.5 w-3.5" />
+              Light
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Contact info */}
@@ -137,6 +209,22 @@ export function SalesmanProfile() {
           value={`#${userProfile?.userId?.toString().slice(-8).padStart(8, "0") ?? "—"}`}
           mono
         />
+      </div>
+
+      {/* Sign out */}
+      <div className="glass-card rounded-2xl p-5 space-y-3">
+        <h3 className="text-sm font-semibold">Account Actions</h3>
+        <Separator className="bg-border/50" />
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          onClick={clear}
+          data-ocid="profile.delete_button"
+        >
+          <LogOut className="h-4 w-4" />
+          Sign Out
+        </Button>
       </div>
     </motion.div>
   );

@@ -12,7 +12,7 @@ import type {
 import { BillStatus, ProductState } from "../backend.d";
 import { useActor } from "./useActor";
 
-// ─── Products ──────────────────────────────────────────────
+// ─── Products ────────────────────────────────────────────────
 
 // bigint 0n is falsy in JS — use explicit null/undefined check instead of !!
 function isDefined<T>(v: T | undefined | null): v is T {
@@ -21,9 +21,12 @@ function isDefined<T>(v: T | undefined | null): v is T {
 
 // Serialize products for offline cache — strip ExternalBlob objects down to
 // plain URL strings so JSON.stringify doesn't lose the getDirectURL method.
-function serializeProductsForCache(
-  products: Product[],
-): Array<Omit<Product, "imageUrls"> & { imageUrls: string[] }> {
+function serializeProductsForCache(products: Product[]): Array<
+  Omit<Product, "imageUrls" | "basePrice"> & {
+    imageUrls: string[];
+    basePrice_str: string;
+  }
+> {
   return products.map((p) => ({
     ...p,
     imageUrls: p.imageUrls.map((b) => {
@@ -33,6 +36,7 @@ function serializeProductsForCache(
         return "";
       }
     }),
+    basePrice_str: p.basePrice.toString(),
   }));
 }
 
@@ -40,12 +44,18 @@ function serializeProductsForCache(
 // instances via ExternalBlob.fromURL so .getDirectURL() works correctly.
 import { ExternalBlob as ExternalBlobImpl } from "../backend";
 function deserializeProductsFromCache(
-  raw: Array<Omit<Product, "imageUrls"> & { imageUrls: string[] }>,
+  raw: Array<
+    Omit<Product, "imageUrls" | "basePrice"> & {
+      imageUrls: string[];
+      basePrice_str?: string;
+    }
+  >,
 ): Product[] {
   return raw.map((p) => ({
     ...p,
     id: BigInt(p.id),
     businessId: BigInt(p.businessId),
+    basePrice: BigInt(p.basePrice_str ?? "0"),
     imageUrls: (p.imageUrls ?? [])
       .filter(Boolean)
       .map((url) => ExternalBlobImpl.fromURL(url)),
@@ -77,7 +87,10 @@ export function useProducts(businessId: bigint | undefined) {
       if (cached) {
         try {
           const raw = JSON.parse(cached) as Array<
-            Omit<Product, "imageUrls"> & { imageUrls: string[] }
+            Omit<Product, "imageUrls" | "basePrice"> & {
+              imageUrls: string[];
+              basePrice_str?: string;
+            }
           >;
           return deserializeProductsFromCache(raw);
         } catch {
@@ -315,7 +328,7 @@ export function useEditVariant() {
   });
 }
 
-// ─── Bills ─────────────────────────────────────────────────
+// ─── Bills ─────────────────────────────────────────────────────
 
 export function usePendingBills(businessId: bigint | undefined) {
   const { actor, isFetching } = useActor();
@@ -327,6 +340,7 @@ export function usePendingBills(businessId: bigint | undefined) {
     },
     enabled: !!actor && !isFetching && isDefined(businessId),
     refetchInterval: 10_000,
+    staleTime: 5_000,
   });
 }
 
@@ -414,7 +428,7 @@ export function useCancelBill() {
   });
 }
 
-// ─── Analytics ─────────────────────────────────────────────
+// ─── Analytics ───────────────────────────────────────────────────
 
 export function useTotalSales(businessId: bigint | undefined) {
   const { actor, isFetching } = useActor();
@@ -455,7 +469,7 @@ export function useActivityLogs(businessId: bigint | undefined) {
   });
 }
 
-// ─── Staff / Invites ────────────────────────────────────────
+// ─── Staff / Invites ────────────────────────────────────────────────
 
 export function useInvites(businessId: bigint | undefined) {
   const { actor, isFetching } = useActor();

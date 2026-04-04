@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { useCreateBillToken } from "../../hooks/useQueries";
+import { toast } from "sonner";
+import { useCreateBillToken, useReleaseVariant } from "../../hooks/useQueries";
 
 export interface CartItem {
   variantId: bigint;
@@ -47,6 +48,7 @@ export function BillReviewSheet({
   businessId,
 }: BillReviewSheetProps) {
   const createBill = useCreateBillToken();
+  const releaseVariant = useReleaseVariant();
 
   // Local editable state initialized from cartItems
   const [editableItems, setEditableItems] = useState<EditableCartItem[]>([]);
@@ -78,6 +80,19 @@ export function BillReviewSheet({
   };
 
   const updatePrice = (variantId: bigint, value: string) => {
+    const numVal = Number.parseFloat(value);
+    if (value !== "" && (Number.isNaN(numVal) || numVal < 0)) {
+      toast.error("Price must be a positive number");
+      // Reset to previous value
+      setEditableItems((prev) =>
+        prev.map((item) =>
+          item.variantId === variantId
+            ? { ...item, editPrice: item.price.toString() }
+            : item,
+        ),
+      );
+      return;
+    }
     setEditableItems((prev) =>
       prev.map((item) =>
         item.variantId === variantId ? { ...item, editPrice: value } : item,
@@ -88,6 +103,8 @@ export function BillReviewSheet({
   const removeItem = (variantId: bigint) => {
     const updated = editableItems.filter((i) => i.variantId !== variantId);
     setEditableItems(updated);
+    // Release the lock on the backend
+    releaseVariant.mutate(variantId);
     // Sync back to cart state
     setCartItems(updated.map(({ editPrice: _, ...rest }) => rest));
   };
@@ -99,6 +116,15 @@ export function BillReviewSheet({
 
   const handleConfirm = async () => {
     if (!businessId || editableItems.length === 0) return;
+
+    // Validate prices
+    for (const item of editableItems) {
+      const price = Number.parseFloat(item.editPrice) || 0;
+      if (price <= 0) {
+        toast.error(`Please enter a valid price for ${item.variantName}`);
+        return;
+      }
+    }
 
     const items = editableItems.map((item) => ({
       variantId: item.variantId,
@@ -119,15 +145,18 @@ export function BillReviewSheet({
     }
   };
 
+  const handleClose = () => {
+    if (editableItems.length > 0) {
+      toast.info("Cart preserved — tap Review Bill to continue");
+    }
+    onClose();
+  };
+
   return (
-    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+    <Sheet open={open} onOpenChange={(v) => !v && handleClose()}>
       <SheetContent
         side="bottom"
-        className="h-[90vh] flex flex-col p-0 border-border/50"
-        style={{
-          background:
-            "linear-gradient(to bottom, oklch(0.16 0.02 264), oklch(0.13 0.015 264))",
-        }}
+        className="h-[90vh] flex flex-col p-0 border-border/50 bg-background"
         data-ocid="bill_review.sheet"
       >
         {/* Header */}
@@ -162,14 +191,8 @@ export function BillReviewSheet({
                 className="flex flex-col items-center justify-center py-20 gap-4"
                 data-ocid="bill_review.empty_state"
               >
-                <div
-                  className="h-16 w-16 rounded-2xl flex items-center justify-center"
-                  style={{ background: "oklch(0.22 0.02 264)" }}
-                >
-                  <Package
-                    className="h-8 w-8"
-                    style={{ color: "oklch(0.50 0.01 264)" }}
-                  />
+                <div className="h-16 w-16 rounded-2xl flex items-center justify-center bg-muted">
+                  <Package className="h-8 w-8 text-muted-foreground" />
                 </div>
                 <div className="text-center">
                   <p className="font-semibold text-foreground mb-1">
@@ -200,8 +223,7 @@ export function BillReviewSheet({
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, x: -20, height: 0 }}
                       transition={{ delay: idx * 0.03 }}
-                      className="rounded-2xl p-4 border border-border/40"
-                      style={{ background: "oklch(0.19 0.02 264)" }}
+                      className="rounded-2xl p-4 border border-border/40 bg-card/50"
                       data-ocid={`bill_review.item.${idx + 1}`}
                     >
                       {/* Top row: name + remove */}
@@ -217,8 +239,7 @@ export function BillReviewSheet({
                         <button
                           type="button"
                           onClick={() => removeItem(item.variantId)}
-                          className="shrink-0 h-7 w-7 rounded-lg flex items-center justify-center hover:bg-destructive/20 transition-colors"
-                          style={{ color: "oklch(0.65 0.22 25)" }}
+                          className="shrink-0 h-7 w-7 rounded-lg flex items-center justify-center hover:bg-destructive/20 transition-colors text-destructive"
                           data-ocid={`bill_review.delete_button.${idx + 1}`}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -228,10 +249,7 @@ export function BillReviewSheet({
                       {/* Bottom row: qty stepper + price + line total */}
                       <div className="flex items-center gap-3">
                         {/* Quantity stepper */}
-                        <div
-                          className="flex items-center rounded-xl border border-border/50 overflow-hidden"
-                          style={{ background: "oklch(0.14 0.015 264)" }}
-                        >
+                        <div className="flex items-center rounded-xl border border-border/50 overflow-hidden bg-muted/30">
                           <button
                             type="button"
                             onClick={() => updateQty(item.variantId, -1)}
@@ -294,12 +312,8 @@ export function BillReviewSheet({
         {/* Sticky bottom bar */}
         {editableItems.length > 0 && (
           <div
-            className="shrink-0 border-t border-border/40 p-4 space-y-3"
-            style={{
-              background:
-                "linear-gradient(to bottom, oklch(0.16 0.02 264 / 0.8), oklch(0.13 0.015 264))",
-              backdropFilter: "blur(8px)",
-            }}
+            className="shrink-0 border-t border-border/40 p-4 space-y-3 bg-background/90"
+            style={{ backdropFilter: "blur(8px)" }}
           >
             {/* Grand total */}
             <div className="flex items-center justify-between">
@@ -317,7 +331,7 @@ export function BillReviewSheet({
               <Button
                 variant="outline"
                 className="flex-1 border-border/50"
-                onClick={onClose}
+                onClick={handleClose}
                 data-ocid="bill_review.cancel_button"
               >
                 Add More Products

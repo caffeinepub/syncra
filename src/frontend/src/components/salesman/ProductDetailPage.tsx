@@ -22,27 +22,13 @@ import {
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   ExternalBlob,
   Product,
   ProductVariant,
   UserProfile,
 } from "../../backend.d";
-import type { CartItem } from "./BillReviewSheet";
-
-/** Safely get a display URL from an ExternalBlob that may be a plain object after cache rehydration */
-function safeGetURL(blob: ExternalBlob): string {
-  try {
-    if (typeof blob.getDirectURL === "function") return blob.getDirectURL();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const raw = blob as any;
-    if (typeof raw.url === "string") return raw.url;
-    return "";
-  } catch {
-    return "";
-  }
-}
 import { ProductState } from "../../backend.d";
 import { useAppContext } from "../../context/AppContext";
 import { useActor } from "../../hooks/useActor";
@@ -52,6 +38,8 @@ import {
   useProductVariants,
   useReleaseVariant,
 } from "../../hooks/useQueries";
+import { safeGetURL } from "../../utils/blob";
+import type { CartItem } from "./BillReviewSheet";
 
 interface Props {
   product: Product;
@@ -94,6 +82,17 @@ export function ProductDetailPage({
 
   // Lightbox state
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  // Carousel dot indicator
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const carouselRef = useRef<HTMLDivElement>(null);
+
+  const handleCarouselScroll = () => {
+    if (!carouselRef.current) return;
+    const el = carouselRef.current;
+    const index = Math.round(el.scrollLeft / el.offsetWidth);
+    setCurrentImageIndex(index);
+  };
 
   const myUserId = userProfile?.userId;
   const qc = useQueryClient();
@@ -219,7 +218,11 @@ export function ProductDetailPage({
         Math.round(Number.parseFloat(itemPrices[v.id.toString()] || "0") * 100),
       ),
     }));
-    const total = items.reduce((acc, i) => acc + i.priceAtSale, BigInt(0));
+    // Fix: multiply priceAtSale by quantity for correct total
+    const total = items.reduce(
+      (acc, i) => acc + i.priceAtSale * BigInt(i.quantity),
+      BigInt(0),
+    );
     await createBill.mutateAsync({
       businessId: userProfile.businessId,
       items,
@@ -231,8 +234,17 @@ export function ProductDetailPage({
     onBack();
   };
 
-  const totalAmount = myLockedVariants.reduce(
-    (acc, v) => acc + Number.parseFloat(itemPrices[v.id.toString()] || "0"),
+  // Display total in bill modal: price * quantity
+  const totalAmount = Object.entries(itemPrices).reduce(
+    (acc, [variantId, price]) => {
+      const lockedItem = myLockedVariants.find(
+        (v) => v.id.toString() === variantId,
+      );
+      const qty = lockedItem
+        ? Number(lockedItems[lockedItem.id.toString()] ?? 1)
+        : 1;
+      return acc + Number.parseFloat(price || "0") * qty;
+    },
     0,
   );
 
@@ -263,6 +275,8 @@ export function ProductDetailPage({
             {product.imageUrls.length > 0 ? (
               <div className="relative">
                 <div
+                  ref={carouselRef}
+                  onScroll={handleCarouselScroll}
                   className="flex overflow-x-auto snap-x snap-mandatory scrollbar-thin"
                   style={{ scrollSnapType: "x mandatory" }}
                 >
@@ -294,7 +308,7 @@ export function ProductDetailPage({
                         // biome-ignore lint/suspicious/noArrayIndexKey: image dot list is stable
                         key={i}
                         className={`h-1.5 rounded-full transition-all ${
-                          i === 0
+                          i === currentImageIndex
                             ? "w-4 bg-foreground"
                             : "w-1.5 bg-foreground/40"
                         }`}
@@ -302,9 +316,11 @@ export function ProductDetailPage({
                     ))}
                   </div>
                 )}
-                <div className="absolute bottom-10 right-3 bg-black/50 rounded-md px-2 py-1 text-white text-xs pointer-events-none">
-                  Tap to expand
-                </div>
+                {product.imageUrls.length > 1 && (
+                  <div className="absolute bottom-10 right-3 bg-black/50 rounded-md px-2 py-1 text-white text-xs pointer-events-none">
+                    Tap to expand
+                  </div>
+                )}
               </div>
             ) : (
               <div
@@ -830,7 +846,9 @@ function VariantTile({
       style={{ borderColor, background: bgColor, color: textColor }}
     >
       <span
-        className={`text-sm font-semibold ${isSold || isOutOfStock ? "line-through opacity-60" : ""}`}
+        className={`text-sm font-semibold ${
+          isSold || isOutOfStock ? "line-through opacity-60" : ""
+        }`}
       >
         {variant.variantName}
       </span>
@@ -851,23 +869,17 @@ function VariantTile({
       )}
       {isSold && (
         <span className="text-[10px]" style={{ color: "oklch(0.65 0.22 25)" }}>
-          Sold
+          Sold Out
         </span>
       )}
       {isOutOfStock && !isSold && (
-        <span className="text-[10px] opacity-60">Out of stock</span>
-      )}
-      {isAvailable && !isLowStock && (
-        <span className="text-[10px]" style={{ color: "oklch(0.72 0.18 155)" }}>
-          {variant.stockCount.toString()} left
+        <span className="text-[10px]" style={{ color: "oklch(0.65 0.22 25)" }}>
+          No Stock
         </span>
       )}
       {isLowStock && (
-        <span
-          className="text-[10px] font-bold animate-pulse"
-          style={{ color: "oklch(0.78 0.17 73)" }}
-        >
-          Only {variant.stockCount.toString()} left!
+        <span className="text-[9px]" style={{ color: "oklch(0.72 0.18 155)" }}>
+          Only {Number(variant.stockCount)} left
         </span>
       )}
     </button>

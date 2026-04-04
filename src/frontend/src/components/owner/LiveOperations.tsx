@@ -5,6 +5,8 @@ import { format } from "date-fns";
 import {
   Activity,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Clock,
   Loader2,
   Package,
@@ -12,6 +14,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { motion } from "motion/react";
+import { useState } from "react";
 import type { BillToken } from "../../backend.d";
 import { useAppContext } from "../../context/AppContext";
 import {
@@ -26,14 +29,51 @@ import { BillStatusBadge } from "../shared/StatusBadge";
 export function LiveOperations() {
   const { business } = useAppContext();
   const { data: bills, isLoading } = usePendingBills(business?.id);
-  const finalize = useFinalizeBill();
-  const cancel = useCancelBill();
+  const finalizeMutation = useFinalizeBill();
+  const cancelMutation = useCancelBill();
+
+  // Per-bill pending state sets
+  const [finalizingIds, setFinalizingIds] = useState<Set<string>>(new Set());
+  const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
 
   const pendingBills = bills?.filter((b) => b.status === "pending") ?? [];
   const lockedItemCount = pendingBills.reduce(
     (acc, b) => acc + b.items.length,
     0,
   );
+
+  // Count unique active salesmen from pending bills
+  const activeSalesmenCount = new Set(
+    pendingBills.map((b) => b.salesmanId.toString()),
+  ).size;
+
+  const handleFinalize = async (billId: bigint) => {
+    const idStr = billId.toString();
+    setFinalizingIds((prev) => new Set(prev).add(idStr));
+    try {
+      await finalizeMutation.mutateAsync(billId);
+    } finally {
+      setFinalizingIds((prev) => {
+        const s = new Set(prev);
+        s.delete(idStr);
+        return s;
+      });
+    }
+  };
+
+  const handleCancel = async (billId: bigint) => {
+    const idStr = billId.toString();
+    setCancellingIds((prev) => new Set(prev).add(idStr));
+    try {
+      await cancelMutation.mutateAsync(billId);
+    } finally {
+      setCancellingIds((prev) => {
+        const s = new Set(prev);
+        s.delete(idStr);
+        return s;
+      });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -52,11 +92,10 @@ export function LiveOperations() {
           icon={<Package className="h-5 w-5" />}
         />
         <StatCard
-          label="Live Activity"
-          value="Active"
+          label="Active Salesmen"
+          value={activeSalesmenCount}
           color="oklch(0.72 0.18 155)"
           icon={<Activity className="h-5 w-5" />}
-          pulse
         />
       </div>
 
@@ -103,10 +142,10 @@ export function LiveOperations() {
                 >
                   <BillCard
                     bill={bill}
-                    onFinalize={() => finalize.mutate(bill.id)}
-                    onCancel={() => cancel.mutate(bill.id)}
-                    isFinalizePending={finalize.isPending}
-                    isCancelPending={cancel.isPending}
+                    onFinalize={() => void handleFinalize(bill.id)}
+                    onCancel={() => void handleCancel(bill.id)}
+                    isFinalizePending={finalizingIds.has(bill.id.toString())}
+                    isCancelPending={cancellingIds.has(bill.id.toString())}
                   />
                 </motion.div>
               ))}
@@ -134,6 +173,7 @@ function BillCard({
   isCancelPending: boolean;
 }) {
   const { data: salesman } = useGetUserById(bill.salesmanId);
+  const [showItems, setShowItems] = useState(false);
 
   const salesmanName = salesman?.name ?? "Unknown salesman";
   const initials = salesmanName
@@ -185,9 +225,9 @@ function BillCard({
                 style={{ color: "oklch(0.72 0.18 155)" }}
               >
                 ₹
-                {Math.round(
-                  Number(bill.totalAmount / BigInt(100)),
-                ).toLocaleString("en-IN")}
+                {Math.round(Number(bill.totalAmount) / 100).toLocaleString(
+                  "en-IN",
+                )}
               </p>
             </div>
             <div>
@@ -200,13 +240,52 @@ function BillCard({
             <div>
               <p className="text-xs text-muted-foreground">Created</p>
               <p className="font-medium text-xs">
-                {format(
-                  new Date(Number(bill.createdAt / BigInt(1_000_000))),
-                  "HH:mm",
-                )}
+                {format(new Date(Number(bill.createdAt) / 1_000_000), "HH:mm")}
               </p>
             </div>
           </div>
+
+          {/* Collapsible item list */}
+          {bill.items.length > 0 && (
+            <div className="mt-1 mb-3">
+              <button
+                type="button"
+                onClick={() => setShowItems((v) => !v)}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showItems ? (
+                  <ChevronUp className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                )}
+                {showItems ? "Hide" : "Show"} items
+              </button>
+              {showItems && (
+                <div className="mt-2 space-y-1 pl-2 border-l border-border/40">
+                  {bill.items.map((item, idx) => (
+                    <div
+                      // biome-ignore lint/suspicious/noArrayIndexKey: stable list
+                      key={idx}
+                      className="flex items-center justify-between text-xs"
+                    >
+                      <span className="text-muted-foreground font-mono">
+                        Variant #{item.variantId.toString().slice(-4)}
+                      </span>
+                      <span className="text-muted-foreground">
+                        ×{Number(item.quantity)} &mdash;
+                        <span className="font-medium ml-1">
+                          ₹
+                          {(Number(item.priceAtSale) / 100).toLocaleString(
+                            "en-IN",
+                          )}
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -221,7 +300,7 @@ function BillCard({
           }}
           variant="outline"
           onClick={onFinalize}
-          disabled={isFinalizePending}
+          disabled={isFinalizePending || isCancelPending}
           data-ocid="live.bill.confirm_button"
         >
           {isFinalizePending ? (
@@ -236,7 +315,7 @@ function BillCard({
           variant="outline"
           className="gap-1.5 h-8 text-destructive border-destructive/20 hover:bg-destructive/10"
           onClick={onCancel}
-          disabled={isCancelPending}
+          disabled={isCancelPending || isFinalizePending}
           data-ocid="live.bill.cancel_button"
         >
           {isCancelPending ? (
@@ -256,27 +335,17 @@ function StatCard({
   value,
   color,
   icon,
-  pulse,
 }: {
   label: string;
   value: string | number;
   color: string;
   icon: React.ReactNode;
-  pulse?: boolean;
 }) {
   return (
     <div className="stat-card rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <div className="relative" style={{ color }}>
-          {icon}
-          {pulse && (
-            <span
-              className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full animate-pulse-ring"
-              style={{ background: color }}
-            />
-          )}
-        </div>
+        <div style={{ color }}>{icon}</div>
       </div>
       <p className="text-2xl font-display font-bold" style={{ color }}>
         {value}

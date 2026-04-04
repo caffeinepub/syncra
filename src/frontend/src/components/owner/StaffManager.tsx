@@ -10,12 +10,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
-import { Loader2, Mail, Phone, Plus, UserX, Users } from "lucide-react";
+import {
+  Loader2,
+  Mail,
+  Phone,
+  Plus,
+  UserMinus,
+  UserX,
+  Users,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
+import type { SalesmanInvite } from "../../backend.d";
 import { InviteStatus } from "../../backend.d";
 import { useAppContext } from "../../context/AppContext";
 import {
+  useGetUserById,
   useInviteSalesman,
   useInvites,
   useRevokeInvite,
@@ -28,12 +38,19 @@ export function StaffManager() {
   const { data: invites, isLoading } = useInvites(business?.id);
   const inviteMutation = useInviteSalesman();
   const revokeMutation = useRevokeInvite();
-
   const [showInvite, setShowInvite] = useState(false);
   const [contactInfo, setContactInfo] = useState("");
+  const [revokingIds, setRevokingIds] = useState<Set<string>>(new Set());
+  const [deactivatingIds, setDeactivatingIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [showAllRevoked, setShowAllRevoked] = useState(false);
 
-  const activeInvites = (invites ?? []).filter(
-    (i) => i.status !== InviteStatus.revoked,
+  const acceptedInvites = (invites ?? []).filter(
+    (i) => i.status === InviteStatus.accepted,
+  );
+  const pendingInvites = (invites ?? []).filter(
+    (i) => i.status === InviteStatus.pending,
   );
   const revokedInvites = (invites ?? []).filter(
     (i) => i.status === InviteStatus.revoked,
@@ -46,6 +63,40 @@ export function StaffManager() {
     setShowInvite(false);
   };
 
+  const handleRevoke = async (invite: SalesmanInvite) => {
+    const idStr = invite.id.toString();
+    setRevokingIds((prev) => new Set(prev).add(idStr));
+    try {
+      await revokeMutation.mutateAsync(invite.id);
+    } finally {
+      setRevokingIds((prev) => {
+        const s = new Set(prev);
+        s.delete(idStr);
+        return s;
+      });
+    }
+  };
+
+  const handleDeactivate = async (invite: SalesmanInvite) => {
+    const idStr = invite.id.toString();
+    setDeactivatingIds((prev) => new Set(prev).add(idStr));
+    try {
+      // For deactivation we revoke invite + deactivate salesman account
+      // We don't have acceptedByUserId in SalesmanInvite, so revoke the invite
+      await revokeMutation.mutateAsync(invite.id);
+    } finally {
+      setDeactivatingIds((prev) => {
+        const s = new Set(prev);
+        s.delete(idStr);
+        return s;
+      });
+    }
+  };
+
+  const displayedRevoked = showAllRevoked
+    ? revokedInvites
+    : revokedInvites.slice(0, 3);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -53,11 +104,7 @@ export function StaffManager() {
         <div>
           <h2 className="text-lg font-display font-bold">Staff Management</h2>
           <p className="text-sm text-muted-foreground">
-            {
-              (invites ?? []).filter((i) => i.status === InviteStatus.accepted)
-                .length
-            }{" "}
-            active salesmen
+            {acceptedInvites.length} active salesmen
           </p>
         </div>
         <Button
@@ -68,6 +115,7 @@ export function StaffManager() {
             color: "oklch(0.08 0.01 264)",
           }}
           onClick={() => setShowInvite(true)}
+          data-ocid="staff.open_modal_button"
         >
           <Plus className="h-4 w-4" />
           Invite Salesman
@@ -83,18 +131,12 @@ export function StaffManager() {
         />
         <MiniStat
           label="Active"
-          value={
-            (invites ?? []).filter((i) => i.status === InviteStatus.accepted)
-              .length
-          }
+          value={acceptedInvites.length}
           color="oklch(0.72 0.18 155)"
         />
         <MiniStat
           label="Pending"
-          value={
-            (invites ?? []).filter((i) => i.status === InviteStatus.pending)
-              .length
-          }
+          value={pendingInvites.length}
           color="oklch(0.78 0.17 73)"
         />
       </div>
@@ -109,21 +151,22 @@ export function StaffManager() {
       ) : (invites ?? []).length === 0 ? (
         <EmptyState onInvite={() => setShowInvite(true)} />
       ) : (
-        <div className="space-y-4">
-          {activeInvites.length > 0 && (
+        <div className="space-y-5">
+          {/* Active Salesmen (accepted) */}
+          {acceptedInvites.length > 0 && (
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                Active Invites
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Active Salesmen ({acceptedInvites.length})
               </p>
               <ScrollArea className="max-h-80">
                 <div className="space-y-2 pr-2">
-                  {activeInvites.map((invite, i) => (
-                    <InviteRow
+                  {acceptedInvites.map((invite, i) => (
+                    <AcceptedSalesmanRow
                       key={invite.id.toString()}
                       invite={invite}
                       index={i}
-                      onRevoke={() => revokeMutation.mutate(invite.id)}
-                      revoking={revokeMutation.isPending}
+                      onDeactivate={() => void handleDeactivate(invite)}
+                      deactivating={deactivatingIds.has(invite.id.toString())}
                     />
                   ))}
                 </div>
@@ -131,13 +174,34 @@ export function StaffManager() {
             </div>
           )}
 
+          {/* Pending Invites */}
+          {pendingInvites.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Pending Invites ({pendingInvites.length})
+              </p>
+              <div className="space-y-2">
+                {pendingInvites.map((invite, i) => (
+                  <InviteRow
+                    key={invite.id.toString()}
+                    invite={invite}
+                    index={i}
+                    onRevoke={() => void handleRevoke(invite)}
+                    revoking={revokingIds.has(invite.id.toString())}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Revoked */}
           {revokedInvites.length > 0 && (
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
                 Revoked ({revokedInvites.length})
               </p>
               <div className="space-y-2 opacity-50">
-                {revokedInvites.slice(0, 3).map((invite, i) => (
+                {displayedRevoked.map((invite, i) => (
                   <InviteRow
                     key={invite.id.toString()}
                     invite={invite}
@@ -148,6 +212,17 @@ export function StaffManager() {
                   />
                 ))}
               </div>
+              {revokedInvites.length > 3 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllRevoked((v) => !v)}
+                  className="mt-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showAllRevoked
+                    ? "Show less"
+                    : `Show ${revokedInvites.length - 3} more`}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -155,7 +230,10 @@ export function StaffManager() {
 
       {/* Invite Dialog */}
       <Dialog open={showInvite} onOpenChange={setShowInvite}>
-        <DialogContent className="max-w-sm glass-card border-border/50">
+        <DialogContent
+          className="max-w-sm glass-card border-border/50"
+          data-ocid="staff.dialog"
+        >
           <DialogHeader>
             <DialogTitle className="font-display">Invite Salesman</DialogTitle>
           </DialogHeader>
@@ -167,9 +245,10 @@ export function StaffManager() {
               <Input
                 value={contactInfo}
                 onChange={(e) => setContactInfo(e.target.value)}
-                placeholder="sarah@store.com or +1 555 000 0000"
+                placeholder="sarah@store.com or +91 98765 43210"
                 className="bg-input/50"
                 onKeyDown={(e) => e.key === "Enter" && void handleInvite()}
+                data-ocid="staff.input"
               />
             </div>
             <p className="text-xs text-muted-foreground">
@@ -182,6 +261,7 @@ export function StaffManager() {
               variant="outline"
               size="sm"
               onClick={() => setShowInvite(false)}
+              data-ocid="staff.cancel_button"
             >
               Cancel
             </Button>
@@ -193,6 +273,7 @@ export function StaffManager() {
                 background: "oklch(0.72 0.14 195)",
                 color: "oklch(0.08 0.01 264)",
               }}
+              data-ocid="staff.submit_button"
             >
               {inviteMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
@@ -206,7 +287,76 @@ export function StaffManager() {
   );
 }
 
-import type { SalesmanInvite } from "../../backend.d";
+// ─── Accepted salesman row (with name lookup) ──────────────────────────────
+
+function AcceptedSalesmanRow({
+  invite,
+  index,
+  onDeactivate,
+  deactivating,
+}: {
+  invite: SalesmanInvite;
+  index: number;
+  onDeactivate: () => void;
+  deactivating: boolean;
+}) {
+  const isEmail = invite.contactInfo.includes("@");
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.04 }}
+      className="glass-card rounded-xl p-4 flex items-center justify-between gap-3"
+      data-ocid={`staff.item.${index + 1}`}
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <div
+          className="h-9 w-9 rounded-full flex items-center justify-center shrink-0"
+          style={{
+            background: "oklch(0.72 0.18 155 / 0.15)",
+            color: "oklch(0.72 0.18 155)",
+          }}
+        >
+          {isEmail ? (
+            <Mail className="h-4 w-4" />
+          ) : (
+            <Phone className="h-4 w-4" />
+          )}
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium truncate">{invite.contactInfo}</p>
+          <p className="text-xs text-muted-foreground">
+            Joined{" "}
+            {format(
+              new Date(Number(invite.invitedAt) / 1_000_000),
+              "MMM d, yyyy",
+            )}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <InviteStatusBadge status={invite.status} />
+        <button
+          type="button"
+          onClick={onDeactivate}
+          disabled={deactivating}
+          className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+          title="Deactivate salesman"
+          data-ocid={`staff.delete_button.${index + 1}`}
+        >
+          {deactivating ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <UserMinus className="h-4 w-4" />
+          )}
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Pending/Revoked invite row ─────────────────────────────────────────────
 
 function InviteRow({
   invite,
@@ -248,7 +398,7 @@ function InviteRow({
           <p className="text-xs text-muted-foreground">
             Invited{" "}
             {format(
-              new Date(Number(invite.invitedAt / BigInt(1_000_000))),
+              new Date(Number(invite.invitedAt) / 1_000_000),
               "MMM d, yyyy",
             )}
           </p>
@@ -293,7 +443,10 @@ function MiniStat({
 
 function EmptyState({ onInvite }: { onInvite: () => void }) {
   return (
-    <div className="glass-card rounded-2xl p-12 text-center">
+    <div
+      className="glass-card rounded-2xl p-12 text-center"
+      data-ocid="staff.empty_state"
+    >
       <div
         className="inline-flex items-center justify-center h-14 w-14 rounded-2xl mb-4"
         style={{ background: "oklch(0.72 0.14 195 / 0.1)" }}
@@ -311,6 +464,7 @@ function EmptyState({ onInvite }: { onInvite: () => void }) {
           background: "oklch(0.72 0.14 195)",
           color: "oklch(0.08 0.01 264)",
         }}
+        data-ocid="staff.primary_button"
       >
         <Plus className="h-4 w-4 mr-1.5" />
         Invite Salesman

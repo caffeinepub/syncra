@@ -27,6 +27,8 @@ interface AppContextValue {
   isLoadingProfile: boolean;
   refetchProfile: () => void;
   isOnline: boolean;
+  theme: "dark" | "light";
+  setTheme: (t: "dark" | "light") => void;
 }
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
@@ -37,26 +39,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [view, setView] = useState<AppView>("splash");
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [theme, setThemeState] = useState<"dark" | "light">(
+    () => (localStorage.getItem("syncra_theme") as "dark" | "light") ?? "dark",
+  );
+
+  // Apply theme class on mount and change
+  useEffect(() => {
+    if (theme === "light") {
+      document.documentElement.classList.add("light");
+    } else {
+      document.documentElement.classList.remove("light");
+    }
+    localStorage.setItem("syncra_theme", theme);
+  }, [theme]);
+
+  const setTheme = (t: "dark" | "light") => setThemeState(t);
 
   // Hard 3-second timeout from FIRST mount — prevents infinite "initializing" loops
-  // caused by the auth hook re-running when authClient state changes.
-  // We use a ref so this timer is only ever scheduled once.
-  const [authTimedOut, setAuthTimedOut] = useState(false);
   const authTimeoutScheduledRef = useRef(false);
+  const [authTimedOut, setAuthTimedOut] = useState(false);
 
   useEffect(() => {
     if (authTimeoutScheduledRef.current) return;
     authTimeoutScheduledRef.current = true;
     const t = setTimeout(() => setAuthTimedOut(true), 3000);
     return () => clearTimeout(t);
-    // Intentionally empty deps — fire once on mount only
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Consider identity "stable" if auth is done OR we've timed out
   const identityStable = !isInitializing || authTimedOut;
 
-  // Track online status
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -68,10 +80,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Track if profile has ever loaded (to distinguish first-load from background refetch)
   const profileEverLoadedRef = useRef(false);
 
-  // Fetch user profile
   const {
     data: userProfile,
     isLoading: profileLoading,
@@ -95,15 +105,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     retry: 1,
   });
 
-  // Suppress background-refetch flicker: only count as "loading" when it's
-  // the very first fetch (profileLoading=true means no cached data yet).
   const profileIsFirstLoading = profileLoading && !profileEverLoadedRef.current;
 
-  // bigint 0n is falsy — use explicit null/undefined check
   const businessId = userProfile?.businessId;
   const hasBusinessId = businessId !== undefined && businessId !== null;
 
-  // Fetch business data
   const { data: business } = useQuery<Business | null>({
     queryKey: ["business", businessId?.toString()],
     queryFn: async () => {
@@ -119,7 +125,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     retry: 1,
   });
 
-  // When identity is lost (logout), clear cached profile/business and saved role
   useEffect(() => {
     if (!identity && identityStable) {
       queryClient.removeQueries({ queryKey: ["userProfile"] });
@@ -129,38 +134,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [identity, identityStable, queryClient]);
 
-  // Track whether we've successfully resolved the profile at least once
   const profileResolvedRef = useRef(false);
-  // Track last routed view to avoid redundant setView calls
   const lastRoutedViewRef = useRef<string | null>(null);
 
-  // Determine view based on auth + profile state
   useEffect(() => {
     if (!identity) return;
     if (!identityStable) return;
-    // Still fetching actor or profile for the first time — wait
     if (actorFetching || profileIsFirstLoading) return;
 
     if (userProfile) {
-      // Profile confirmed — mark resolved and navigate
       profileResolvedRef.current = true;
       const targetView =
         userProfile.role === "owner" ? "owner-dashboard" : "salesman-floor";
-      // Only call setView if we haven't already routed here — prevents re-render loops
       if (lastRoutedViewRef.current !== targetView) {
         lastRoutedViewRef.current = targetView;
         setView(targetView);
       }
     } else if (!profileResolvedRef.current) {
-      // Profile query returned null and we've never resolved one —
-      // this is a genuinely new user. Stay on splash for role selection.
       if (lastRoutedViewRef.current !== "splash") {
         lastRoutedViewRef.current = "splash";
         setView("splash");
       }
     }
-    // If profileResolvedRef.current is true but userProfile is transiently null
-    // (e.g., query re-fired), do NOT redirect back to splash.
   }, [
     identity,
     identityStable,
@@ -174,12 +169,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     queryClient.invalidateQueries({ queryKey: ["business"] });
   }, [refetchProfile, queryClient]);
 
-  // Only show loading when identity is confirmed but we're still fetching data for the FIRST time.
-  // Background refetches (after profileEverLoadedRef is true) don't block the UI.
-  // If auth is still initializing (but not timed out), show loading too — but never longer than 3s.
   const isLoadingProfile = identityStable
     ? !!identity && (actorFetching || profileIsFirstLoading)
-    : true; // still in first-time auth init window
+    : true;
 
   return (
     <AppContext.Provider
@@ -191,6 +183,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         isLoadingProfile,
         refetchProfile: refetch,
         isOnline,
+        theme,
+        setTheme,
       }}
     >
       {children}

@@ -23,19 +23,67 @@ export function SalesmanBills() {
     userProfile?.businessId,
   );
   const [selectedBill, setSelectedBill] = useState<BillToken | null>(null);
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "pending" | "finalized" | "cancelled"
+  >("all");
 
   // Filter to only this salesman's bills
   const myBills = (bills ?? []).filter(
     (b) => b.salesmanId === userProfile?.userId,
   );
 
+  const filteredBills = myBills.filter((b) => {
+    if (statusFilter === "all") return true;
+    return b.status === statusFilter;
+  });
+
+  const sortedBills = filteredBills.slice().sort((a, b) => {
+    if (b.createdAt > a.createdAt) return 1;
+    if (b.createdAt < a.createdAt) return -1;
+    return 0;
+  });
+
+  const statusFilters: Array<"all" | "pending" | "finalized" | "cancelled"> = [
+    "all",
+    "pending",
+    "finalized",
+    "cancelled",
+  ];
+
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col h-full space-y-4">
       <div>
         <h2 className="text-lg font-display font-bold mb-1">My Bills</h2>
         <p className="text-sm text-muted-foreground">
           {myBills.length} bill token{myBills.length !== 1 ? "s" : ""} generated
         </p>
+      </div>
+
+      {/* Status filter pills */}
+      <div className="flex gap-2 flex-wrap">
+        {statusFilters.map((f) => (
+          <button
+            type="button"
+            key={f}
+            onClick={() => setStatusFilter(f)}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-all capitalize ${
+              statusFilter === f
+                ? "text-primary-foreground"
+                : "glass text-muted-foreground hover:text-foreground"
+            }`}
+            style={
+              statusFilter === f
+                ? {
+                    background: "oklch(0.72 0.14 195)",
+                    color: "oklch(0.08 0.01 264)",
+                  }
+                : {}
+            }
+            data-ocid={`bills.${f}.tab`}
+          >
+            {f === "all" ? `All (${myBills.length})` : f}
+          </button>
+        ))}
       </div>
 
       {isLoading ? (
@@ -44,84 +92,73 @@ export function SalesmanBills() {
             <SkeletonCard key={i} />
           ))}
         </div>
-      ) : myBills.length === 0 ? (
+      ) : sortedBills.length === 0 ? (
         <EmptyState />
       ) : (
-        <ScrollArea className="h-[calc(100vh-220px)]">
-          <div className="space-y-3 pr-2">
-            {myBills
-              .slice()
-              .sort((a, b) => Number(b.createdAt - a.createdAt))
-              .map((bill, i) => (
-                <motion.button
-                  type="button"
-                  key={bill.id.toString()}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.04 }}
-                  className="glass-card rounded-xl p-4 w-full text-left hover:border-border/60 transition-all active:scale-[0.99]"
-                  onClick={() => setSelectedBill(bill)}
-                  data-ocid={`bills.item.${i + 1}`}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="font-mono text-xs text-muted-foreground">
-                          #{bill.id.toString().slice(-8).padStart(8, "0")}
-                        </span>
-                        <BillStatusBadge status={bill.status} />
+        <div className="flex-1 overflow-auto">
+          <div className="space-y-3 pr-2 pb-4">
+            {sortedBills.map((bill, i) => (
+              <motion.button
+                type="button"
+                key={bill.id.toString()}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.04 }}
+                className="glass-card rounded-xl p-4 w-full text-left hover:border-border/60 transition-all active:scale-[0.99]"
+                onClick={() => setSelectedBill(bill)}
+                data-ocid={`bills.item.${i + 1}`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-mono text-xs text-muted-foreground">
+                        #{bill.id.toString().slice(-8).padStart(8, "0")}
+                      </span>
+                      <BillStatusBadge status={bill.status} />
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Amount</p>
+                        <p
+                          className="font-bold"
+                          style={{ color: "oklch(0.72 0.18 155)" }}
+                        >
+                          ₹
+                          {Math.round(
+                            Number(bill.totalAmount) / 100,
+                          ).toLocaleString("en-IN")}
+                        </p>
                       </div>
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <p className="text-xs text-muted-foreground">
-                            Amount
-                          </p>
-                          <p
-                            className="font-bold"
-                            style={{ color: "oklch(0.72 0.18 155)" }}
-                          >
-                            ₹
-                            {Math.round(
-                              Number(bill.totalAmount / BigInt(100)),
-                            ).toLocaleString("en-IN")}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Items</p>
-                          <p className="font-medium">{bill.items.length}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">
-                            Created
-                          </p>
-                          <p className="font-medium text-xs">
-                            {format(
-                              new Date(
-                                Number(bill.createdAt / BigInt(1_000_000)),
-                              ),
-                              "MMM d, HH:mm",
-                            )}
-                          </p>
-                        </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Items</p>
+                        <p className="font-medium">{bill.items.length}</p>
                       </div>
-                      {bill.finalizedAt && (
-                        <p className="text-xs text-muted-foreground mt-2">
-                          Finalized:{" "}
+                      <div>
+                        <p className="text-xs text-muted-foreground">Created</p>
+                        <p className="font-medium text-xs">
                           {format(
-                            new Date(
-                              Number(bill.finalizedAt / BigInt(1_000_000)),
-                            ),
+                            new Date(Number(bill.createdAt) / 1_000_000),
                             "MMM d, HH:mm",
                           )}
                         </p>
-                      )}
+                      </div>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
+                    {bill.finalizedAt && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Finalized:{" "}
+                        {format(
+                          new Date(Number(bill.finalizedAt) / 1_000_000),
+                          "MMM d, HH:mm",
+                        )}
+                      </p>
+                    )}
                   </div>
-                </motion.button>
-              ))}
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
+                </div>
+              </motion.button>
+            ))}
           </div>
-        </ScrollArea>
+        </div>
       )}
 
       {/* Bill detail sheet */}
@@ -144,15 +181,15 @@ function BillDetailSheet({
 
   const grandTotal = Number(bill.totalAmount) / 100;
 
+  const getVariantName = (variantId: bigint): string => {
+    return `Variant #${variantId.toString().slice(-4)}`;
+  };
+
   return (
     <Sheet open={!!bill} onOpenChange={(v) => !v && onClose()}>
       <SheetContent
         side="bottom"
-        className="h-[85vh] flex flex-col p-0 border-border/50"
-        style={{
-          background:
-            "linear-gradient(to bottom, oklch(0.16 0.02 264), oklch(0.13 0.015 264))",
-        }}
+        className="h-[85vh] flex flex-col p-0 border-border/50 bg-background"
         data-ocid="bill_detail.sheet"
       >
         {/* Header */}
@@ -170,8 +207,8 @@ function BillDetailSheet({
                 <BillStatusBadge status={bill.status} />
                 <span className="text-xs text-muted-foreground">
                   {format(
-                    new Date(Number(bill.createdAt / BigInt(1_000_000))),
-                    "MMM d, yyyy · HH:mm",
+                    new Date(Number(bill.createdAt) / 1_000_000),
+                    "MMM d, yyyy \u00b7 HH:mm",
                   )}
                 </span>
               </div>
@@ -207,12 +244,12 @@ function BillDetailSheet({
                 const priceEach = Number(item.priceAtSale) / 100;
                 const qty = Number(item.quantity);
                 const lineTotal = priceEach * qty;
+                const variantLabel = getVariantName(item.variantId);
                 return (
                   <div
                     // biome-ignore lint/suspicious/noArrayIndexKey: bill items are positionally stable
                     key={idx}
-                    className="rounded-xl p-3 border border-border/40"
-                    style={{ background: "oklch(0.19 0.02 264)" }}
+                    className="rounded-xl p-3 border border-border/40 bg-card/50"
                     data-ocid={`bill_detail.item.${idx + 1}`}
                   >
                     <div className="flex items-center gap-2">
@@ -221,8 +258,8 @@ function BillDetailSheet({
                         <p className="text-sm font-medium leading-tight">
                           Item #{(idx + 1).toString().padStart(2, "0")}
                         </p>
-                        <p className="text-xs text-muted-foreground font-mono">
-                          Variant ID: {item.variantId.toString()}
+                        <p className="text-xs text-muted-foreground">
+                          {variantLabel}
                         </p>
                       </div>
 
@@ -267,12 +304,8 @@ function BillDetailSheet({
 
         {/* Footer total */}
         <div
-          className="shrink-0 border-t border-border/40 px-4 py-4"
-          style={{
-            background:
-              "linear-gradient(to bottom, oklch(0.16 0.02 264 / 0.8), oklch(0.13 0.015 264))",
-            backdropFilter: "blur(8px)",
-          }}
+          className="shrink-0 border-t border-border/40 px-4 py-4 bg-background/90"
+          style={{ backdropFilter: "blur(8px)" }}
         >
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-muted-foreground">
@@ -301,7 +334,7 @@ function BillDetailSheet({
             >
               ✓ Payment confirmed &amp; finalized on{" "}
               {format(
-                new Date(Number(bill.finalizedAt / BigInt(1_000_000))),
+                new Date(Number(bill.finalizedAt) / 1_000_000),
                 "MMM d, yyyy",
               )}
             </div>

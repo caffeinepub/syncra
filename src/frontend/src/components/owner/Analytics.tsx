@@ -4,7 +4,16 @@ import { format, isThisMonth, isThisYear, isToday } from "date-fns";
 import { Clock, IndianRupee, Receipt, TrendingUp } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
+import {
+  Bar,
+  BarChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import type { BillToken, SalesmanActivityLog } from "../../backend.d";
+import { BillStatus } from "../../backend.d";
 import { useAppContext } from "../../context/AppContext";
 import {
   useActivityLogs,
@@ -32,7 +41,7 @@ export function Analytics() {
   const [filter, setFilter] = useState<"today" | "month" | "year">("today");
 
   const filteredBills = (bills ?? []).filter((b) => {
-    const ts = Number(b.createdAt / BigInt(1_000_000));
+    const ts = Number(b.createdAt) / 1_000_000;
     const d = new Date(ts);
     if (filter === "today") return isToday(d);
     if (filter === "month") return isThisMonth(d);
@@ -40,8 +49,24 @@ export function Analytics() {
   });
 
   const filteredTotal = filteredBills
-    .filter((b) => b.status === "finalized")
+    .filter((b) => b.status === BillStatus.finalized)
     .reduce((acc, b) => acc + b.totalAmount, BigInt(0));
+
+  const finalizedBillsCount = filteredBills.filter(
+    (b) => b.status === BillStatus.finalized,
+  ).length;
+
+  // Build chart data grouped by day/month
+  const chartData = buildChartData(filteredBills, filter);
+
+  // Filter activity logs by same period
+  const filteredLogs = (logs ?? []).filter((log) => {
+    const ts = Number(log.timestamp) / 1_000_000;
+    const d = new Date(ts);
+    if (filter === "today") return isToday(d);
+    if (filter === "month") return isThisMonth(d);
+    return isThisYear(d);
+  });
 
   return (
     <div className="space-y-6">
@@ -52,7 +77,7 @@ export function Analytics() {
           value={
             salesLoading
               ? null
-              : `₹${Math.round(Number((totalSales ?? BigInt(0)) / BigInt(100))).toLocaleString("en-IN")}`
+              : `₹${Math.round(Number(totalSales ?? BigInt(0)) / 100).toLocaleString("en-IN")}`
           }
           icon={<IndianRupee className="h-5 w-5" />}
           color="oklch(0.72 0.18 155)"
@@ -67,7 +92,7 @@ export function Analytics() {
         />
         <StatCard
           label="Period Revenue"
-          value={`₹${Math.round(Number(filteredTotal / BigInt(100))).toLocaleString("en-IN")}`}
+          value={`₹${Math.round(Number(filteredTotal) / 100).toLocaleString("en-IN")}`}
           icon={<TrendingUp className="h-5 w-5" />}
           color="oklch(0.78 0.17 73)"
           sub={
@@ -79,8 +104,8 @@ export function Analytics() {
           }
         />
         <StatCard
-          label="Period Bills"
-          value={filteredBills.length.toString()}
+          label="Finalized Bills"
+          value={finalizedBillsCount.toString()}
           icon={<Clock className="h-5 w-5" />}
           color="oklch(0.68 0.18 285)"
           sub={
@@ -92,6 +117,50 @@ export function Analytics() {
           }
         />
       </div>
+
+      {/* Revenue trend bar chart */}
+      {chartData.length > 0 && (
+        <div className="glass-card rounded-2xl p-4 mt-2">
+          <p className="text-sm font-semibold mb-3">Revenue Trend</p>
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart
+              data={chartData}
+              margin={{ top: 0, right: 8, left: -20, bottom: 0 }}
+            >
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 11, fill: "oklch(0.58 0.015 264)" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: "oklch(0.58 0.015 264)" }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+              />
+              <Tooltip
+                formatter={(value: number) => [
+                  `₹${Math.round(value).toLocaleString("en-IN")}`,
+                  "Revenue",
+                ]}
+                contentStyle={{
+                  background: "oklch(0.15 0.015 264)",
+                  border: "1px solid oklch(0.28 0.02 264)",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                }}
+                labelStyle={{ color: "oklch(0.72 0.14 195)" }}
+              />
+              <Bar
+                dataKey="revenue"
+                fill="oklch(0.72 0.14 195)"
+                radius={[4, 4, 0, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Tabs for filter + lists */}
       <Tabs defaultValue="bills" className="space-y-4">
@@ -180,15 +249,15 @@ export function Analytics() {
                 <SkeletonRow key={i} />
               ))}
             </div>
-          ) : (logs ?? []).length === 0 ? (
+          ) : filteredLogs.length === 0 ? (
             <EmptyState
-              label="No activity logs yet"
+              label="No activity logs in this period"
               data-ocid="analytics.activity.empty_state"
             />
           ) : (
             <ScrollArea className="h-[400px]">
               <div className="space-y-2 pr-2">
-                {(logs ?? [])
+                {filteredLogs
                   .slice()
                   .reverse()
                   .map((log, i) => (
@@ -208,6 +277,36 @@ export function Analytics() {
       </Tabs>
     </div>
   );
+}
+
+// ─── Chart data builder ────────────────────────────────────────────────
+
+function buildChartData(
+  bills: BillToken[],
+  filter: "today" | "month" | "year",
+): Array<{ label: string; revenue: number }> {
+  const finalizedBills = bills.filter((b) => b.status === BillStatus.finalized);
+  const buckets = new Map<string, number>();
+
+  for (const bill of finalizedBills) {
+    const ts = Number(bill.createdAt) / 1_000_000;
+    const d = new Date(ts);
+    let key: string;
+    if (filter === "today") {
+      key = format(d, "HH:00");
+    } else if (filter === "month") {
+      key = format(d, "MMM d");
+    } else {
+      key = format(d, "MMM");
+    }
+    const prev = buckets.get(key) ?? 0;
+    buckets.set(key, prev + Number(bill.totalAmount) / 100);
+  }
+
+  return Array.from(buckets.entries()).map(([label, revenue]) => ({
+    label,
+    revenue,
+  }));
 }
 
 // ─── Inner component: bill history row with salesman name ──────────────────
@@ -237,16 +336,10 @@ function BillHistoryRow({
           #{bill.id.toString().slice(-8).padStart(8, "0")}
         </p>
         <p className="text-sm font-bold">
-          ₹
-          {Math.round(Number(bill.totalAmount / BigInt(100))).toLocaleString(
-            "en-IN",
-          )}
+          ₹{Math.round(Number(bill.totalAmount) / 100).toLocaleString("en-IN")}
         </p>
         <p className="text-xs text-muted-foreground">
-          {format(
-            new Date(Number(bill.createdAt / BigInt(1_000_000))),
-            "MMM d, HH:mm",
-          )}
+          {format(new Date(Number(bill.createdAt) / 1_000_000), "MMM d, HH:mm")}
         </p>
 
         {/* Salesman attribution */}
@@ -333,7 +426,7 @@ function ActivityLogRow({
 
         {/* Timestamp */}
         <p className="text-xs text-muted-foreground shrink-0 pt-0.5">
-          {format(new Date(Number(log.timestamp / BigInt(1_000_000))), "HH:mm")}
+          {format(new Date(Number(log.timestamp) / 1_000_000), "HH:mm")}
         </p>
       </div>
     </div>

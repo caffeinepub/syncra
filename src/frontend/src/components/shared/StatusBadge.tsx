@@ -43,17 +43,20 @@ export function ProductStateBadge({
     [ProductState.available]: {
       label: "Available",
       className: "bg-success/15 text-success border-success/20",
+      dotColor: "oklch(0.72 0.18 155)",
     },
     [ProductState.locked]: {
       label: "Locked",
       className: "bg-warning/15 text-warning border-warning/20",
+      dotColor: "oklch(0.78 0.18 75)",
     },
     [ProductState.sold]: {
       label: "Sold Out",
       className: "bg-destructive/15 text-destructive border-destructive/20",
+      dotColor: "oklch(0.55 0.22 25)",
     },
   };
-  const { label, className: stateClass } = config[effectiveState];
+  const { label, className: stateClass, dotColor } = config[effectiveState];
   return (
     <Badge
       variant="outline"
@@ -61,14 +64,7 @@ export function ProductStateBadge({
     >
       <span
         className="mr-1.5 h-1.5 w-1.5 rounded-full inline-block"
-        style={{
-          background:
-            effectiveState === ProductState.available
-              ? "oklch(var(--success))"
-              : effectiveState === ProductState.locked
-                ? "oklch(var(--warning))"
-                : "oklch(var(--destructive))",
-        }}
+        style={{ background: dotColor }}
       />
       {label}
     </Badge>
@@ -85,22 +81,29 @@ export function BillStatusBadge({ status, className }: BillStatusBadgeProps) {
     [BillStatus.pending]: {
       label: "Pending",
       className: "bg-warning/15 text-warning border-warning/20",
+      dotColor: "oklch(0.78 0.18 75)",
     },
     [BillStatus.finalized]: {
       label: "Finalized",
       className: "bg-success/15 text-success border-success/20",
+      dotColor: "oklch(0.72 0.18 155)",
     },
     [BillStatus.cancelled]: {
       label: "Cancelled",
       className: "bg-muted/50 text-muted-foreground border-border",
+      dotColor: "oklch(0.55 0.22 25)",
     },
   };
-  const { label, className: statusClass } = config[status];
+  const { label, className: statusClass, dotColor } = config[status];
   return (
     <Badge
       variant="outline"
       className={cn(statusClass, "font-medium text-xs", className)}
     >
+      <span
+        className="mr-1.5 h-1.5 w-1.5 rounded-full inline-block"
+        style={{ background: dotColor }}
+      />
       {label}
     </Badge>
   );

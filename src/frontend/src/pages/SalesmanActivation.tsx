@@ -251,7 +251,7 @@ export function SalesmanActivation() {
                       id="contact"
                       value={contactInfo}
                       onChange={(e) => setContactInfo(e.target.value)}
-                      placeholder="john@example.com or +1 555 000 0000"
+                      placeholder="john@example.com or +91 98765 43210"
                       className="bg-input/50 border-border/50"
                     />
                   </div>

@@ -1,26 +1,13 @@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Package, Search } from "lucide-react";
+import { Package, Search, X } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
-import type { ExternalBlob, Product } from "../../backend.d";
+import type { Product } from "../../backend.d";
 import { useAppContext } from "../../context/AppContext";
 import { useProducts } from "../../hooks/useQueries";
+import { safeGetURL } from "../../utils/blob";
 import { SkeletonGrid } from "../shared/SkeletonCard";
-
-/** Safely get a display URL from an ExternalBlob that may be a plain object after cache rehydration */
-function safeGetURL(blob: ExternalBlob): string {
-  try {
-    if (typeof blob.getDirectURL === "function") return blob.getDirectURL();
-    // Fallback: some cached objects may expose a raw url property
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const raw = blob as any;
-    if (typeof raw.url === "string") return raw.url;
-    return "";
-  } catch {
-    return "";
-  }
-}
 
 interface Props {
   onSelectProduct: (product: Product) => void;
@@ -40,7 +27,6 @@ export function SalesmanCatalog({ onSelectProduct }: Props) {
         p.category.toLowerCase().includes(search.toLowerCase()),
     );
 
-  // Get unique categories
   const categories = [
     ...new Set(
       (products ?? []).filter((p) => p.isActive).map((p) => p.category),
@@ -61,66 +47,82 @@ export function SalesmanCatalog({ onSelectProduct }: Props) {
           placeholder="Search products, SKU, category..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-9 bg-input/50 h-11"
+          className="pl-9 pr-9 bg-input/50 h-11"
+          data-ocid="catalog.search_input"
         />
-      </div>
-
-      {/* Category filters */}
-      {categories.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+        {search && (
           <button
             type="button"
-            onClick={() => setActiveCategory(null)}
-            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-              activeCategory === null
-                ? "text-primary-foreground"
-                : "glass text-muted-foreground hover:text-foreground"
-            }`}
-            style={
-              activeCategory === null
-                ? {
-                    background: "oklch(0.72 0.14 195)",
-                    color: "oklch(0.08 0.01 264)",
-                  }
-                : {}
-            }
+            onClick={() => setSearch("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Clear search"
           >
-            All
+            <X className="h-4 w-4" />
           </button>
-          {categories.map((cat) => (
+        )}
+      </div>
+
+      {/* Category filters with right-side overflow fade */}
+      {categories.length > 0 && (
+        <div className="relative">
+          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent pointer-events-none z-10" />
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
             <button
               type="button"
-              key={cat}
-              onClick={() =>
-                setActiveCategory(cat === activeCategory ? null : cat)
-              }
+              onClick={() => setActiveCategory(null)}
               className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                activeCategory === cat
+                activeCategory === null
                   ? "text-primary-foreground"
                   : "glass text-muted-foreground hover:text-foreground"
               }`}
               style={
-                activeCategory === cat
+                activeCategory === null
                   ? {
                       background: "oklch(0.72 0.14 195)",
                       color: "oklch(0.08 0.01 264)",
                     }
                   : {}
               }
+              data-ocid="catalog.tab"
             >
-              {cat}
+              All
             </button>
-          ))}
+            {categories.map((cat) => (
+              <button
+                type="button"
+                key={cat}
+                onClick={() =>
+                  setActiveCategory(cat === activeCategory ? null : cat)
+                }
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  activeCategory === cat
+                    ? "text-primary-foreground"
+                    : "glass text-muted-foreground hover:text-foreground"
+                }`}
+                style={
+                  activeCategory === cat
+                    ? {
+                        background: "oklch(0.72 0.14 195)",
+                        color: "oklch(0.08 0.01 264)",
+                      }
+                    : {}
+                }
+                data-ocid="catalog.tab"
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
       {/* Stats row */}
-      <div className="flex items-center justify-between flex-wrap gap-1">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5">
         <p className="text-xs text-muted-foreground">
           {displayProducts.length} products
           {activeCategory && ` in ${activeCategory}`}
         </p>
-        <p className="text-xs text-muted-foreground/60 italic">
+        <p className="hidden sm:block text-xs text-muted-foreground/60 italic">
           Product catalog managed by your store owner
         </p>
       </div>
@@ -158,6 +160,11 @@ function ProductTile({
   const hues = [195, 155, 285, 73, 25];
   const hue = hues[index % hues.length];
 
+  // Check if all variants are sold out (simple check on basePrice=0 as fallback;
+  // actual stock tracked by variants; here we just show a hint via product.isActive)
+  const imgUrl =
+    product.imageUrls.length > 0 ? safeGetURL(product.imageUrls[0]) : "";
+
   return (
     <motion.button
       initial={{ opacity: 0, y: 12 }}
@@ -165,18 +172,19 @@ function ProductTile({
       transition={{ delay: index * 0.03 }}
       whileTap={{ scale: 0.97 }}
       onClick={onClick}
-      className="glass-card rounded-xl overflow-hidden text-left group w-full"
+      className="glass-card rounded-xl overflow-hidden text-left group w-full flex flex-col"
+      data-ocid={`catalog.item.${index + 1}`}
     >
       {/* Image */}
       <div
-        className="aspect-square relative overflow-hidden"
+        className="aspect-[4/3] relative overflow-hidden"
         style={{
           background: `linear-gradient(135deg, oklch(0.22 0.03 ${hue}) 0%, oklch(0.18 0.025 ${hue + 20}) 100%)`,
         }}
       >
-        {product.imageUrls.length > 0 && safeGetURL(product.imageUrls[0]) ? (
+        {imgUrl ? (
           <img
-            src={safeGetURL(product.imageUrls[0])}
+            src={imgUrl}
             alt={product.name}
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             loading="lazy"
@@ -189,13 +197,12 @@ function ProductTile({
             />
           </div>
         )}
-        {/* Gradient overlay on hover */}
         <div className="absolute inset-0 bg-gradient-to-t from-background/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
 
       {/* Info */}
-      <div className="p-3">
-        <p className="text-sm font-semibold line-clamp-2 leading-tight mb-1.5">
+      <div className="p-3 flex flex-col gap-1.5">
+        <p className="text-sm font-semibold line-clamp-1 leading-tight">
           {product.name}
         </p>
         <div className="flex items-center justify-between gap-1 flex-wrap">
@@ -226,7 +233,10 @@ function ProductTile({
 
 function EmptyState() {
   return (
-    <div className="glass-card rounded-2xl p-16 text-center">
+    <div
+      className="glass-card rounded-2xl p-16 text-center"
+      data-ocid="catalog.empty_state"
+    >
       <div
         className="inline-flex items-center justify-center h-14 w-14 rounded-2xl mb-4"
         style={{ background: "oklch(0.72 0.14 195 / 0.1)" }}

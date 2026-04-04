@@ -45,6 +45,8 @@ const PLANS = [
     ],
     icon: <Zap className="h-5 w-5" />,
     color: "oklch(0.72 0.14 195)",
+    borderColor: "oklch(0.72 0.14 195 / 0.4)",
+    bgColor: "oklch(0.72 0.14 195 / 0.06)",
   },
   {
     id: "pro",
@@ -61,6 +63,8 @@ const PLANS = [
     ],
     icon: <BarChart3 className="h-5 w-5" />,
     color: "oklch(0.72 0.18 155)",
+    borderColor: "oklch(0.72 0.18 155 / 0.4)",
+    bgColor: "oklch(0.72 0.18 155 / 0.06)",
     highlighted: true,
   },
   {
@@ -78,6 +82,8 @@ const PLANS = [
     ],
     icon: <Users className="h-5 w-5" />,
     color: "oklch(0.68 0.18 285)",
+    borderColor: "oklch(0.68 0.18 285 / 0.4)",
+    bgColor: "oklch(0.68 0.18 285 / 0.06)",
   },
 ];
 
@@ -95,10 +101,21 @@ export function OwnerOnboarding() {
   const [phone, setPhone] = useState("");
   const [selectedPlan, setSelectedPlan] = useState("pro");
 
+  const isValidEmail = (e: string) =>
+    e.trim() !== "" && e.includes("@") && e.includes(".");
+
   const canNext = () => {
     if (step === 0) return businessName.trim() && businessType;
-    if (step === 1) return ownerName.trim() && email.trim();
+    if (step === 1) return ownerName.trim() && isValidEmail(email);
     return true;
+  };
+
+  const handleNext = () => {
+    if (step === 1 && !isValidEmail(email)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    setStep((s) => s + 1);
   };
 
   const handleSubmit = async () => {
@@ -261,7 +278,9 @@ export function OwnerOnboarding() {
               </span>
               {i < STEPS.length - 1 && (
                 <div
-                  className={`h-px flex-1 min-w-8 mx-2 transition-colors ${i < step ? "bg-success/40" : "bg-border"}`}
+                  className={`h-px flex-1 min-w-8 mx-2 transition-colors ${
+                    i < step ? "bg-success/40" : "bg-border"
+                  }`}
                 />
               )}
             </div>
@@ -378,7 +397,7 @@ export function OwnerOnboarding() {
                       type="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+1 555 000 0000"
+                      placeholder="+91 98765 43210"
                       className="bg-input/50 border-border/50"
                     />
                   </div>
@@ -401,14 +420,14 @@ export function OwnerOnboarding() {
                       onClick={() => setSelectedPlan(plan.id)}
                       className={`w-full text-left p-4 rounded-xl border transition-all duration-200 ${
                         selectedPlan === plan.id
-                          ? "border-primary/50"
+                          ? ""
                           : "border-border/50 hover:border-border glass-card"
                       }`}
                       style={
                         selectedPlan === plan.id
                           ? {
-                              borderColor: `${plan.color} / 0.5`,
-                              background: `${plan.color} / 0.08`,
+                              borderColor: plan.borderColor,
+                              background: plan.bgColor,
                             }
                           : {}
                       }
@@ -418,7 +437,7 @@ export function OwnerOnboarding() {
                           <div
                             className="p-2 rounded-lg"
                             style={{
-                              background: `oklch(from ${plan.color} l c h / 0.15)`,
+                              background: plan.bgColor,
                               color: plan.color,
                             }}
                           >
@@ -499,7 +518,7 @@ export function OwnerOnboarding() {
                   background: "oklch(0.72 0.14 195)",
                   color: "oklch(0.08 0.01 264)",
                 }}
-                onClick={() => setStep((s) => s + 1)}
+                onClick={handleNext}
                 disabled={!canNext()}
               >
                 Continue
