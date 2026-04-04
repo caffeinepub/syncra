@@ -316,19 +316,7 @@ export function SalesmanFloor() {
         </div>
       </nav>
 
-      {/* Footer */}
       <div className="h-20" />
-      <footer className="border-t border-border/30 py-3 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()}. Built with ❤️ using{" "}
-        <a
-          href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-primary hover:underline"
-        >
-          caffeine.ai
-        </a>
-      </footer>
     </div>
   );
 }

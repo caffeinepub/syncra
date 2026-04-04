@@ -26,27 +26,14 @@ export function useActor() {
       };
 
       const actor = await createActorWithConfig(actorOptions);
-
-      // Initialize access control — non-fatal. If the token is missing or the
-      // canister env var isn't set, we still return the actor so other calls work.
-      try {
-        const adminToken = getSecretParameter("caffeineAdminToken") || "";
-        await actor._initializeAccessControlWithSecret(adminToken);
-      } catch (err) {
-        console.warn(
-          "[useActor] _initializeAccessControlWithSecret failed (non-fatal):",
-          err,
-        );
-      }
-
+      const adminToken = getSecretParameter("caffeineAdminToken") || "";
+      await actor._initializeAccessControlWithSecret(adminToken);
       return actor;
     },
     // Only refetch when identity changes
     staleTime: Number.POSITIVE_INFINITY,
     // This will cause the actor to be recreated when the identity changes
     enabled: true,
-    // Don't let access control failures kill the actor
-    retry: 1,
   });
 
   // When the actor changes, invalidate dependent queries
