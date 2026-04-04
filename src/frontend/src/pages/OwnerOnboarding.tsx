@@ -119,7 +119,12 @@ export function OwnerOnboarding() {
   };
 
   const handleSubmit = async () => {
-    if (!actor) return;
+    if (!actor) {
+      toast.error(
+        "Still connecting to the network. Please wait a moment and try again.",
+      );
+      return;
+    }
     setIsSubmitting(true);
     try {
       const now = BigInt(Date.now() * 1_000_000);
@@ -146,7 +151,8 @@ export function OwnerOnboarding() {
       setView("owner-dashboard");
     } catch (err) {
       console.error(err);
-      toast.error("Registration failed. Please try again.");
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Registration failed: ${msg}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -533,7 +539,7 @@ export function OwnerOnboarding() {
                   color: "oklch(0.08 0.01 264)",
                 }}
                 onClick={handleSubmit}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !actor}
               >
                 {isSubmitting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
