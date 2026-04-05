@@ -14,6 +14,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { loadConfig } from "../config";
@@ -59,7 +60,8 @@ export type InternetIdentityContext = {
 };
 
 const ONE_HOUR_IN_NANOSECONDS = BigInt(3_600_000_000_000);
-const DEFAULT_IDENTITY_PROVIDER = process.env.II_URL;
+// Hardcoded to avoid process.env.II_URL being undefined in Vite
+const DEFAULT_IDENTITY_PROVIDER = "https://identity.ic0.app";
 
 type ProviderValue = InternetIdentityContext;
 const InternetIdentityReactContext = createContext<ProviderValue | undefined>(
@@ -156,6 +158,14 @@ export function InternetIdentityProvider({
   const [loginStatus, setStatus] = useState<Status>("initializing");
   const [loginError, setError] = useState<Error | undefined>(undefined);
 
+  // Capture createOptions in a ref so the init effect can read the latest
+  // value without re-running when it changes (init must only run once).
+  const createOptionsRef = useRef(createOptions);
+  createOptionsRef.current = createOptions;
+
+  // Guard: ensures the init effect only ever runs once per mount
+  const initCalledRef = useRef(false);
+
   const setErrorMessage = useCallback((message: string) => {
     setStatus("loginError");
     setError(new Error(message));
@@ -220,6 +230,8 @@ export function InternetIdentityProvider({
         setAuthClient(undefined);
         setStatus("idle");
         setError(undefined);
+        // Reset init guard so a fresh client can be created after logout
+        initCalledRef.current = false;
       })
       .catch((unknownError: unknown) => {
         setStatus("loginError");
@@ -231,30 +243,35 @@ export function InternetIdentityProvider({
       });
   }, [authClient, setErrorMessage]);
 
+  // Runs ONCE on mount via the initCalledRef guard.
+  // createOptions is read from a ref so we don't need it in the dep array,
+  // which would cause re-runs every time the parent re-renders.
   useEffect(() => {
+    if (initCalledRef.current) return;
+    initCalledRef.current = true;
+
     let cancelled = false;
     void (async () => {
       try {
         setStatus("initializing");
-        let existingClient = authClient;
-        if (!existingClient) {
-          existingClient = await createAuthClient(createOptions);
-          if (cancelled) return;
-          setAuthClient(existingClient);
-        }
-        const isAuthenticated = await existingClient.isAuthenticated();
+        const client = await createAuthClient(createOptionsRef.current);
+        if (cancelled) return;
+        setAuthClient(client);
+        const isAuthenticated = await client.isAuthenticated();
         if (cancelled) return;
         if (isAuthenticated) {
-          const loadedIdentity = existingClient.getIdentity();
+          const loadedIdentity = client.getIdentity();
           setIdentity(loadedIdentity);
         }
       } catch (unknownError) {
-        setStatus("loginError");
-        setError(
-          unknownError instanceof Error
-            ? unknownError
-            : new Error("Initialization failed"),
-        );
+        if (!cancelled) {
+          setStatus("loginError");
+          setError(
+            unknownError instanceof Error
+              ? unknownError
+              : new Error("Initialization failed"),
+          );
+        }
       } finally {
         if (!cancelled) setStatus("idle");
       }
@@ -262,7 +279,7 @@ export function InternetIdentityProvider({
     return () => {
       cancelled = true;
     };
-  }, [createOptions, authClient]);
+  }, []);
 
   const value = useMemo<ProviderValue>(
     () => ({

@@ -27,7 +27,14 @@ export function useActor() {
 
       const actor = await createActorWithConfig(actorOptions);
       const adminToken = getSecretParameter("caffeineAdminToken") || "";
-      await actor._initializeAccessControlWithSecret(adminToken);
+      // Best-effort: access control init may fail if CAFFEINE_ADMIN_TOKEN is
+      // not set in this environment. We swallow the error so the actor is
+      // still returned and normal calls (registerBusiness, etc.) work.
+      try {
+        await actor._initializeAccessControlWithSecret(adminToken);
+      } catch {
+        // access control init is best-effort; continue with actor anyway
+      }
       return actor;
     },
     // Only refetch when identity changes
