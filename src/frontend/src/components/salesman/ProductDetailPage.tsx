@@ -129,15 +129,23 @@ export function ProductDetailPage({
   });
 
   // Build a map from userId string -> name
-  const lockerNameMap = useMemo(() => {
+  // Also track "stale" locker IDs: those whose profile resolved to null
+  // (deactivated / unknown user). Stale locks should not block other salesmen.
+  const { lockerNameMap, staleLockerIds } = useMemo(() => {
     const map: Record<string, string> = {};
+    const stale = new Set<string>();
     for (let i = 0; i < otherLockerIds.length; i++) {
-      const profile = lockerQueries[i]?.data;
-      if (profile) {
-        map[otherLockerIds[i]] = profile.name;
+      const q = lockerQueries[i];
+      if (!q) continue;
+      if (q.isSuccess && q.data) {
+        map[otherLockerIds[i]] = q.data.name;
+      } else if (q.isSuccess && !q.data) {
+        // Resolved but no profile — deactivated or removed user → stale lock
+        stale.add(otherLockerIds[i]);
       }
+      // While still loading we leave it out of both maps (treated as blocked until resolved)
     }
-    return map;
+    return { lockerNameMap: map, staleLockerIds: stale };
   }, [otherLockerIds, lockerQueries]);
 
   const handleVariantTap = async (variant: ProductVariant) => {
@@ -150,12 +158,15 @@ export function ProductDetailPage({
       myUserId &&
       variant.lockedBy === myUserId;
     const isMyLocalLock = lockedItems[variant.id.toString()] !== undefined;
+    const lockerIdStr = variant.lockedBy?.toString() ?? "";
+    const isStale = lockerIdStr ? staleLockerIds.has(lockerIdStr) : false;
     const isOtherLock =
       variant.state === ProductState.locked &&
       variant.lockedBy !== undefined &&
       variant.lockedBy !== null &&
       !(myUserId && variant.lockedBy === myUserId) &&
-      !isMyLocalLock;
+      !isMyLocalLock &&
+      !isStale; // stale lock (deactivated salesman) = treat as available
 
     if (isOtherLock) {
       const lockerName =
@@ -389,8 +400,13 @@ export function ProductDetailPage({
                     (variant.state === ProductState.locked &&
                       !!myUserId &&
                       variant.lockedBy === myUserId);
+                  const lockerIdKey = variant.lockedBy?.toString() ?? "";
+                  const isStaleInJsx = lockerIdKey
+                    ? staleLockerIds.has(lockerIdKey)
+                    : false;
                   const otherLockerName =
                     !isMyLock &&
+                    !isStaleInJsx &&
                     variant.state === ProductState.locked &&
                     variant.lockedBy !== undefined &&
                     variant.lockedBy !== null

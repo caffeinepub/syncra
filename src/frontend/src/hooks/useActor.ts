@@ -26,13 +26,25 @@ export function useActor() {
       };
 
       const actor = await createActorWithConfig(actorOptions);
-      const adminToken = getSecretParameter("caffeineAdminToken") || "";
-      await actor._initializeAccessControlWithSecret(adminToken);
+
+      // CRITICAL FIX: wrap access control init in try-catch.
+      // If CAFFEINE_ADMIN_TOKEN env var is missing the call traps on the backend
+      // and would previously kill the entire actor, leaving it null and blocking
+      // all downstream calls (e.g. "Start Free Trial", catalog load, etc.).
+      // We now silently swallow the error so normal actor methods still work.
+      try {
+        const adminToken = getSecretParameter("caffeineAdminToken") || "";
+        await actor._initializeAccessControlWithSecret(adminToken);
+      } catch {
+        // Access control init failed (expected in production where
+        // CAFFEINE_ADMIN_TOKEN is not set). The actor itself is still valid
+        // and all regular canister calls will work.
+      }
+
       return actor;
     },
     // Only refetch when identity changes
     staleTime: Number.POSITIVE_INFINITY,
-    // This will cause the actor to be recreated when the identity changes
     enabled: true,
   });
 
