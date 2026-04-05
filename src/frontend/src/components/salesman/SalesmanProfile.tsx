@@ -171,7 +171,7 @@ export function SalesmanProfile() {
         />
         <StatCard
           label="Earnings"
-          value={`\u20b9${Math.round(Number(totalRevenue) / 100).toLocaleString("en-IN")}`}
+          value={`₹${Math.round(Number(totalRevenue) / 100).toLocaleString("en-IN")}`}
           color="oklch(0.72 0.18 155)"
         />
       </div>

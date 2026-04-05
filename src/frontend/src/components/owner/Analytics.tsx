@@ -159,7 +159,7 @@ export function Analytics() {
           value={
             salesLoading
               ? null
-              : `\u20b9${Math.round(Number(totalSales ?? BigInt(0)) / 100).toLocaleString("en-IN")}`
+              : `₹${Math.round(Number(totalSales ?? BigInt(0)) / 100).toLocaleString("en-IN")}`
           }
           icon={<IndianRupee className="h-5 w-5" />}
           color="oklch(0.72 0.18 155)"
@@ -174,7 +174,7 @@ export function Analytics() {
         />
         <StatCard
           label="Period Revenue"
-          value={`\u20b9${Math.round(Number(filteredTotal) / 100).toLocaleString("en-IN")}`}
+          value={`₹${Math.round(Number(filteredTotal) / 100).toLocaleString("en-IN")}`}
           icon={<TrendingUp className="h-5 w-5" />}
           color="oklch(0.78 0.17 68)"
           sub={PERIOD_LABELS[filter]}
@@ -211,12 +211,12 @@ export function Analytics() {
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(v) =>
-                  `\u20b9${v >= 1000 ? `${Math.round(v / 1000)}k` : v}`
+                  `₹${v >= 1000 ? `${Math.round(v / 1000)}k` : v}`
                 }
               />
               <Tooltip
                 formatter={(v: number) => [
-                  `\u20b9${v.toLocaleString("en-IN")}`,
+                  `₹${v.toLocaleString("en-IN")}`,
                   "Revenue",
                 ]}
                 contentStyle={{
@@ -382,8 +382,7 @@ function BillRow({ bill, index }: { bill: BillToken; index: number }) {
       </div>
       <div className="flex items-center gap-3 shrink-0">
         <p className="font-semibold text-sm">
-          \u20b9
-          {Math.round(Number(bill.totalAmount) / 100).toLocaleString("en-IN")}
+          ₹{Math.round(Number(bill.totalAmount) / 100).toLocaleString("en-IN")}
         </p>
         <BillStatusBadge status={bill.status} />
       </div>
@@ -408,8 +407,7 @@ function ActivityRow({ log }: { log: SalesmanActivityLog }) {
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{log.action}</p>
         <p className="text-xs text-muted-foreground">
-          {user?.name ?? "Unknown"} \u2022{" "}
-          {format(new Date(ts), "MMM d, h:mm a")}
+          {user?.name ?? "Unknown"} • {format(new Date(ts), "MMM d, h:mm a")}
         </p>
       </div>
     </div>

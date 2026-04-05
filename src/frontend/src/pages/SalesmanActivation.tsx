@@ -267,9 +267,9 @@ export function SalesmanActivation() {
                       border: "1px solid oklch(0.78 0.19 72 / 0.15)",
                     }}
                   >
-                    \ud83d\udd0d Your invite is being verified against
-                    registered businesses. This connects your account to your
-                    employer automatically.
+                    🔍 Your invite is being verified against registered
+                    businesses. This connects your account to your employer
+                    automatically.
                   </div>
                 </div>
                 <div className="mt-6 flex justify-end">

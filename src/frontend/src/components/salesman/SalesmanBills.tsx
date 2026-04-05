@@ -78,8 +78,7 @@ export function SalesmanBills() {
             color: "oklch(0.72 0.18 155)",
           }}
         >
-          \u20b9
-          {Math.round(Number(totalEarnings) / 100).toLocaleString("en-IN")}
+          ₹{Math.round(Number(totalEarnings) / 100).toLocaleString("en-IN")}
         </div>
       </div>
 
@@ -168,7 +167,7 @@ export function SalesmanBills() {
               <div className="flex items-center gap-2.5 shrink-0">
                 <div className="text-right">
                   <p className="font-bold text-sm">
-                    \u20b9
+                    ₹
                     {Math.round(Number(bill.totalAmount) / 100).toLocaleString(
                       "en-IN",
                     )}
@@ -219,7 +218,7 @@ export function SalesmanBills() {
                 {selectedBill.items.map((item, i) => {
                   const cached = nameCache[item.variantId.toString()];
                   const displayName = cached
-                    ? `${cached.productName} \u2014 ${cached.variantName}`
+                    ? `${cached.productName} — ${cached.variantName}`
                     : `Item #${item.variantId.toString().slice(-6)}`;
                   return (
                     <div
@@ -240,7 +239,7 @@ export function SalesmanBills() {
                         <div>
                           <p className="text-sm font-medium">{displayName}</p>
                           <p className="text-xs text-muted-foreground">
-                            \u20b9
+                            ₹
                             {Math.round(
                               Number(item.priceAtSale ?? 0) / 100,
                             ).toLocaleString("en-IN")}{" "}
@@ -249,7 +248,7 @@ export function SalesmanBills() {
                         </div>
                       </div>
                       <p className="font-semibold text-sm">
-                        \u20b9
+                        ₹
                         {Math.round(
                           Number(
                             (item.priceAtSale ?? BigInt(0)) *
@@ -274,7 +273,7 @@ export function SalesmanBills() {
                   className="font-bold text-xl"
                   style={{ color: "oklch(0.78 0.19 72)" }}
                 >
-                  \u20b9
+                  ₹
                   {Math.round(
                     Number(selectedBill.totalAmount) / 100,
                   ).toLocaleString("en-IN")}

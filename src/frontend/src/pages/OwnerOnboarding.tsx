@@ -34,7 +34,7 @@ const PLANS = [
   {
     id: "basic",
     name: "Basic",
-    price: "\u20b92,499",
+    price: "₹2,499",
     period: "/mo",
     description: "For small retailers",
     features: [
@@ -51,7 +51,7 @@ const PLANS = [
   {
     id: "pro",
     name: "Pro",
-    price: "\u20b96,499",
+    price: "₹6,499",
     period: "/mo",
     description: "For growing businesses",
     features: [
@@ -70,7 +70,7 @@ const PLANS = [
   {
     id: "enterprise",
     name: "Enterprise",
-    price: "\u20b916,499",
+    price: "₹16,499",
     period: "/mo",
     description: "For large operations",
     features: [
@@ -353,16 +353,16 @@ export function OwnerOnboarding() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value={BusinessType.clothing}>
-                          \ud83d\udc57 Clothing
+                          👗 Clothing
                         </SelectItem>
                         <SelectItem value={BusinessType.electronics}>
-                          \ud83d\udcf1 Electronics
+                          📱 Electronics
                         </SelectItem>
                         <SelectItem value={BusinessType.groceries}>
-                          \ud83d\uded2 Groceries
+                          🛒 Groceries
                         </SelectItem>
                         <SelectItem value={BusinessType.general}>
-                          \ud83c\udfea General
+                          🏪 General
                         </SelectItem>
                       </SelectContent>
                     </Select>
@@ -519,8 +519,7 @@ export function OwnerOnboarding() {
                   ))}
                 </div>
                 <p className="text-center text-xs text-muted-foreground mt-5">
-                  \ud83c\udf89 First 30 days completely free \u2014 no credit
-                  card required
+                  🎉 First 30 days completely free — no credit card required
                 </p>
               </StepWrapper>
             )}

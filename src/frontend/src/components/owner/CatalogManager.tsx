@@ -304,8 +304,7 @@ function ProductCard({
             backdropFilter: "blur(8px)",
           }}
         >
-          \u20b9
-          {Math.round(Number(product.basePrice) / 100).toLocaleString("en-IN")}
+          ₹{Math.round(Number(product.basePrice) / 100).toLocaleString("en-IN")}
         </div>
       </div>
 
@@ -627,7 +626,7 @@ function ProductFormDialog({
                 htmlFor="pprice"
                 className="text-sm font-medium mb-1.5 block"
               >
-                Base Price (\u20b9)
+                Base Price (₹)
               </Label>
               <Input
                 id="pprice"
@@ -733,7 +732,7 @@ function ProductFormDialog({
                       <div className="w-24">
                         {i === 0 && (
                           <p className="text-[10px] text-muted-foreground mb-1">
-                            Price (\u20b9)
+                            Price (₹)
                           </p>
                         )}
                         <Input
@@ -891,7 +890,7 @@ function VariantManagerDialog({
                         className="text-xs"
                         style={{ color: "oklch(0.78 0.19 72)" }}
                       >
-                        \u20b9
+                        ₹
                         {Math.round(Number(v.price) / 100).toLocaleString(
                           "en-IN",
                         )}

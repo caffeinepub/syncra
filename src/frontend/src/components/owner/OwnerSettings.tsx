@@ -30,10 +30,10 @@ import {
 import { SubStatusBadge } from "../shared/StatusBadge";
 
 const BUSINESS_TYPE_LABELS: Record<BusinessType, string> = {
-  [BusinessType.clothing]: "\ud83d\udc57 Clothing",
-  [BusinessType.electronics]: "\ud83d\udcf1 Electronics",
-  [BusinessType.groceries]: "\ud83d\uded2 Groceries",
-  [BusinessType.general]: "\ud83c\udfea General",
+  [BusinessType.clothing]: "👗 Clothing",
+  [BusinessType.electronics]: "📱 Electronics",
+  [BusinessType.groceries]: "🛒 Groceries",
+  [BusinessType.general]: "🏪 General",
 };
 
 export function OwnerSettings() {
@@ -198,18 +198,18 @@ export function OwnerSettings() {
         subtitle="Your registered business details"
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <InfoRow label="Business Name" value={business?.name ?? "\u2014"} />
+          <InfoRow label="Business Name" value={business?.name ?? "—"} />
           <InfoRow
             label="Type"
             value={
               business?.businessType
                 ? (BUSINESS_TYPE_LABELS[business.businessType] ??
                   String(business.businessType))
-                : "\u2014"
+                : "—"
             }
           />
-          <InfoRow label="Owner" value={userProfile?.name ?? "\u2014"} />
-          <InfoRow label="Email" value={userProfile?.email || "\u2014"} />
+          <InfoRow label="Owner" value={userProfile?.name ?? "—"} />
+          <InfoRow label="Email" value={userProfile?.email || "—"} />
           {userProfile?.phone && (
             <InfoRow label="Phone" value={userProfile.phone} />
           )}
@@ -331,12 +331,12 @@ export function OwnerSettings() {
           value={
             userProfile?.principal
               ? `${userProfile.principal.toString().slice(0, 22)}...`
-              : "\u2014"
+              : "—"
           }
           mono
         />
         <p className="text-xs text-muted-foreground mt-3">
-          Your identity is secured by the Internet Computer\u2019s decentralized
+          Your identity is secured by the Internet Computer’s decentralized
           infrastructure.
         </p>
       </SettingsSection>

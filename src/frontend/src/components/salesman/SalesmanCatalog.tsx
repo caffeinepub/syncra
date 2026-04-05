@@ -202,8 +202,7 @@ function CatalogCard({
             backdropFilter: "blur(8px)",
           }}
         >
-          \u20b9
-          {Math.round(Number(product.basePrice) / 100).toLocaleString("en-IN")}
+          ₹{Math.round(Number(product.basePrice) / 100).toLocaleString("en-IN")}
         </div>
       </div>
 

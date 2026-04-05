@@ -217,6 +217,16 @@ function BillCard({
     .toUpperCase()
     .slice(0, 2);
 
+  // Build always-visible item summary
+  const itemSummary = bill.items
+    .map((item) => {
+      const info = lookupVariantName(businessId, item.variantId.toString());
+      return info
+        ? `${info.productName} — ${info.variantName}`
+        : `Item #${item.variantId.toString().slice(-6)}`;
+    })
+    .join(", ");
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -243,12 +253,20 @@ function BillCard({
                 Bill #{bill.id.toString().slice(-6)} &middot;{" "}
                 {format(new Date(ts), "h:mm a")}
               </p>
+              {/* Always-visible item summary */}
+              <p
+                className="text-xs truncate mt-0.5"
+                style={{ color: "oklch(0.78 0.17 68)" }}
+                title={itemSummary}
+              >
+                {itemSummary}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <div className="text-right">
               <p className="font-bold text-sm">
-                \u20b9
+                ₹
                 {Math.round(Number(bill.totalAmount) / 100).toLocaleString(
                   "en-IN",
                 )}
@@ -319,7 +337,7 @@ function BillCard({
               item.variantId.toString(),
             );
             const label = info
-              ? `${info.productName} \u2014 ${info.variantName}`
+              ? `${info.productName} — ${info.variantName}`
               : `Item #${item.variantId.toString().slice(-6)}`;
             return (
               <div
@@ -339,7 +357,7 @@ function BillCard({
                   <span className="text-sm text-muted-foreground">{label}</span>
                 </div>
                 <span className="font-medium">
-                  \u20b9
+                  ₹
                   {Math.round(
                     Number(item.priceAtSale ?? BigInt(0)) / 100,
                   ).toLocaleString("en-IN")}

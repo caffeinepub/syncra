@@ -228,7 +228,7 @@ export function SalesmanFloor() {
                 <span className="font-semibold text-sm">Review Bill</span>
               </div>
               <div className="font-bold text-base">
-                \u20b9{cartTotalPrice.toLocaleString("en-IN")}
+                ₹{cartTotalPrice.toLocaleString("en-IN")}
               </div>
             </button>
           </motion.div>
