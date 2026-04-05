@@ -6,34 +6,29 @@ import { getSecretParameter } from "../utils/urlParams";
 import { useInternetIdentity } from "./useInternetIdentity";
 
 const ACTOR_QUERY_KEY = "actor";
+
 export function useActor() {
   const { identity } = useInternetIdentity();
   const queryClient = useQueryClient();
+
   const actorQuery = useQuery<backendInterface>({
     queryKey: [ACTOR_QUERY_KEY, identity?.getPrincipal().toString()],
     queryFn: async () => {
-      const isAuthenticated = !!identity;
-
-      if (!isAuthenticated) {
+      if (!identity) {
+        // Anonymous actor — no access control init needed
         return await createActorWithConfig();
       }
 
-      const actorOptions = {
-        agentOptions: {
-          identity,
-        },
-      };
+      const actor = await createActorWithConfig({
+        agentOptions: { identity },
+      });
 
-      const actor = await createActorWithConfig(actorOptions);
-
-      // Wrap access control init in try-catch — if env var is missing it should not kill the actor
+      // Best-effort access control init — never block the actor if this fails
       try {
-        const adminToken = getSecretParameter("caffeineAdminToken") || "";
+        const adminToken = getSecretParameter("caffeineAdminToken") ?? "";
         await actor._initializeAccessControlWithSecret(adminToken);
       } catch {
-        // Access control init failed (e.g. missing CAFFEINE_ADMIN_TOKEN env var)
-        // This is non-fatal — normal app calls will still work
-        console.warn("Access control initialization skipped (non-fatal)");
+        // Silently ignore — access control token may not be set in this environment
       }
 
       return actor;
@@ -42,24 +37,20 @@ export function useActor() {
     enabled: true,
   });
 
-  // When the actor changes, invalidate dependent queries
+  // Invalidate dependent queries whenever the actor instance changes
   useEffect(() => {
     if (actorQuery.data) {
       queryClient.invalidateQueries({
-        predicate: (query) => {
-          return !query.queryKey.includes(ACTOR_QUERY_KEY);
-        },
+        predicate: (query) => !query.queryKey.includes(ACTOR_QUERY_KEY),
       });
       queryClient.refetchQueries({
-        predicate: (query) => {
-          return !query.queryKey.includes(ACTOR_QUERY_KEY);
-        },
+        predicate: (query) => !query.queryKey.includes(ACTOR_QUERY_KEY),
       });
     }
   }, [actorQuery.data, queryClient]);
 
   return {
-    actor: actorQuery.data || null,
+    actor: actorQuery.data ?? null,
     isFetching: actorQuery.isFetching,
   };
 }

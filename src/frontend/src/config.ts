@@ -7,7 +7,6 @@ import {
 import { StorageClient } from "./utils/StorageClient";
 import { HttpAgent } from "@icp-sdk/core/agent";
 
-// Hardcoded fallbacks — process.env is NOT available in Vite browser builds
 const DEFAULT_STORAGE_GATEWAY_URL = "https://blob.caffeine.ai";
 const DEFAULT_BUCKET_NAME = "default-bucket";
 const DEFAULT_PROJECT_ID = "0000000-0000-0000-0000-00000000000";
@@ -35,31 +34,40 @@ export async function loadConfig(): Promise<Config> {
     return configCache;
   }
 
-  // import.meta.env is the correct Vite way to read env vars in browser code
-  const backendCanisterId = import.meta.env.VITE_CANISTER_ID_BACKEND as string | undefined;
-  const envBaseUrl = (import.meta.env.BASE_URL as string | undefined) || "/";
+  // Vite exposes env vars via import.meta.env, not process.env
+  const backendCanisterId =
+    (import.meta.env.VITE_CANISTER_ID_BACKEND as string | undefined) ??
+    (import.meta.env.CANISTER_ID_BACKEND as string | undefined);
+
+  const envBaseUrl =
+    (import.meta.env.VITE_BASE_URL as string | undefined) ??
+    (import.meta.env.BASE_URL as string | undefined) ??
+    "/";
   const baseUrl = envBaseUrl.endsWith("/") ? envBaseUrl : `${envBaseUrl}/`;
 
   try {
     const response = await fetch(`${baseUrl}env.json`);
     const config = (await response.json()) as JsonConfig;
 
-    const resolvedCanisterId =
-      config.backend_canister_id !== "undefined"
-        ? config.backend_canister_id
-        : backendCanisterId;
-
-    if (!resolvedCanisterId) {
+    if (!backendCanisterId && config.backend_canister_id === "undefined") {
       console.error("CANISTER_ID_BACKEND is not set");
       throw new Error("CANISTER_ID_BACKEND is not set");
     }
 
+    // storage_gateway_url: prefer Vite env, then fall back to the caffeine gateway
+    const storageGatewayUrl =
+      (import.meta.env.VITE_STORAGE_GATEWAY_URL as string | undefined) ??
+      DEFAULT_STORAGE_GATEWAY_URL;
+
     const fullConfig: Config = {
       backend_host:
         config.backend_host === "undefined" ? undefined : config.backend_host,
-      backend_canister_id: resolvedCanisterId,
-      // Use hardcoded fallback — process.env.STORAGE_GATEWAY_URL is always undefined in Vite
-      storage_gateway_url: DEFAULT_STORAGE_GATEWAY_URL,
+      backend_canister_id: (
+        config.backend_canister_id === "undefined"
+          ? backendCanisterId
+          : config.backend_canister_id
+      ) as string,
+      storage_gateway_url: storageGatewayUrl,
       bucket_name: DEFAULT_BUCKET_NAME,
       project_id:
         config.project_id !== "undefined"
@@ -74,9 +82,7 @@ export async function loadConfig(): Promise<Config> {
     return fullConfig;
   } catch {
     if (!backendCanisterId) {
-      // Try reading from env.json directly via a re-fetch won't help here,
-      // so look for the canister id in a known location
-      console.error("CANISTER_ID_BACKEND is not set and env.json failed");
+      console.error("CANISTER_ID_BACKEND is not set");
       throw new Error("CANISTER_ID_BACKEND is not set");
     }
     const fallbackConfig: Config = {
@@ -87,6 +93,7 @@ export async function loadConfig(): Promise<Config> {
       project_id: DEFAULT_PROJECT_ID,
       ii_derivation_origin: undefined,
     };
+    configCache = fallbackConfig;
     return fallbackConfig;
   }
 }
@@ -113,9 +120,7 @@ async function maybeLoadMockBackend(): Promise<backendInterface | null> {
     const mockModules = import.meta.glob("./mocks/backend.{ts,tsx,js,jsx}");
     const path = Object.keys(mockModules)[0];
     if (!path) return null;
-    const mod = (await mockModules[path]()) as {
-      mockBackend?: backendInterface;
-    };
+    const mod = (await mockModules[path]()) as { mockBackend?: backendInterface };
     return mod.mockBackend ?? null;
   } catch {
     return null;
@@ -126,9 +131,7 @@ export async function createActorWithConfig(
   options?: CreateActorOptions,
 ): Promise<backendInterface> {
   const mock = await maybeLoadMockBackend();
-  if (mock) {
-    return mock;
-  }
+  if (mock) return mock;
 
   const config = await loadConfig();
   const resolvedOptions = options ?? {};
@@ -136,17 +139,17 @@ export async function createActorWithConfig(
     ...resolvedOptions.agentOptions,
     host: config.backend_host,
   });
+
   if (config.backend_host?.includes("localhost")) {
     await agent.fetchRootKey().catch((err) => {
-      console.warn(
-        "Unable to fetch root key. Check to ensure that your local replica is running",
-      );
+      console.warn("Unable to fetch root key. Check that your local replica is running.");
       console.error(err);
     });
   }
+
   const actorOptions = {
     ...resolvedOptions,
-    agent: agent,
+    agent,
     processError,
   };
 

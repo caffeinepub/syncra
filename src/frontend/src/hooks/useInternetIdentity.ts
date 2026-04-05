@@ -40,7 +40,7 @@ export type InternetIdentityContext = {
 };
 
 const ONE_HOUR_IN_NANOSECONDS = BigInt(3_600_000_000_000);
-// Hardcoded fallback — process.env is not available in Vite browser builds
+// Always use the canonical II URL — process.env is not available in Vite browser builds
 const DEFAULT_IDENTITY_PROVIDER = "https://identity.ic0.app";
 
 type ProviderValue = InternetIdentityContext;
@@ -89,27 +89,37 @@ export function InternetIdentityProvider({
   children: ReactNode;
   createOptions?: AuthClientCreateOptions;
 }>) {
-  // Store authClient in a ref — NOT state — so updates never re-trigger the init effect
-  const authClientRef = useRef<AuthClient | null>(null);
+  const [authClient, setAuthClient] = useState<AuthClient | undefined>(
+    undefined,
+  );
   const [identity, setIdentity] = useState<Identity | undefined>(undefined);
   const [loginStatus, setStatus] = useState<Status>("initializing");
   const [loginError, setError] = useState<Error | undefined>(undefined);
-  const initDoneRef = useRef(false);
+
+  // Stable ref for createOptions so the init effect can read it without being a dependency
+  const createOptionsRef = useRef(createOptions);
+  createOptionsRef.current = createOptions;
+
+  // Guard: only run the init effect once on mount
+  const initRan = useRef(false);
 
   const setErrorMessage = useCallback((message: string) => {
     setStatus("loginError");
     setError(new Error(message));
   }, []);
 
-  const handleLoginSuccess = useCallback(() => {
-    const latestIdentity = authClientRef.current?.getIdentity();
-    if (!latestIdentity) {
-      setErrorMessage("Identity not found after successful login");
-      return;
-    }
-    setIdentity(latestIdentity);
-    setStatus("success");
-  }, [setErrorMessage]);
+  const handleLoginSuccess = useCallback(
+    (client: AuthClient) => {
+      const latestIdentity = client.getIdentity();
+      if (!latestIdentity) {
+        setErrorMessage("Identity not found after successful login");
+        return;
+      }
+      setIdentity(latestIdentity);
+      setStatus("success");
+    },
+    [setErrorMessage],
+  );
 
   const handleLoginError = useCallback(
     (maybeError?: string) => {
@@ -119,10 +129,9 @@ export function InternetIdentityProvider({
   );
 
   const login = useCallback(() => {
-    const authClient = authClientRef.current;
     if (!authClient) {
       setErrorMessage(
-        "AuthClient is not initialized yet. Please wait a moment and try again.",
+        "AuthClient is not initialized yet, make sure to call `login` on user interaction.",
       );
       return;
     }
@@ -133,7 +142,7 @@ export function InternetIdentityProvider({
       currentIdentity instanceof DelegationIdentity &&
       isDelegationValid(currentIdentity.getDelegation())
     ) {
-      // Already authenticated — just surface the identity
+      // Already authenticated — surface the identity
       setIdentity(currentIdentity);
       setStatus("success");
       return;
@@ -141,31 +150,29 @@ export function InternetIdentityProvider({
 
     const options: AuthClientLoginOptions = {
       identityProvider: DEFAULT_IDENTITY_PROVIDER,
-      onSuccess: handleLoginSuccess,
+      onSuccess: () => handleLoginSuccess(authClient),
       onError: handleLoginError,
-      maxTimeToLive: ONE_HOUR_IN_NANOSECONDS * BigInt(24 * 30), // 30 days
+      maxTimeToLive: ONE_HOUR_IN_NANOSECONDS * BigInt(24 * 30),
     };
 
     setStatus("logging-in");
     void authClient.login(options);
-  }, [handleLoginError, handleLoginSuccess, setErrorMessage]);
+  }, [authClient, handleLoginError, handleLoginSuccess, setErrorMessage]);
 
   const clear = useCallback(() => {
-    const authClient = authClientRef.current;
     if (!authClient) {
-      setIdentity(undefined);
-      setStatus("idle");
-      setError(undefined);
+      setErrorMessage("Auth client not initialized");
       return;
     }
 
     void authClient
       .logout()
       .then(() => {
-        // Do NOT null out authClientRef — that would re-trigger init
         setIdentity(undefined);
         setStatus("idle");
         setError(undefined);
+        // Re-create a fresh client so the user can log in again
+        void createAuthClient(createOptionsRef.current).then(setAuthClient);
       })
       .catch((unknownError: unknown) => {
         setStatus("loginError");
@@ -175,38 +182,41 @@ export function InternetIdentityProvider({
             : new Error("Logout failed"),
         );
       });
-  }, []);
+  }, [authClient, setErrorMessage]);
 
-  // Init runs ONCE on mount — authClientRef is used so updates never re-trigger this
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional empty deps — runs exactly once
+  // Init: runs ONCE on mount only
   useEffect(() => {
-    if (initDoneRef.current) return;
-    initDoneRef.current = true;
+    if (initRan.current) return;
+    initRan.current = true;
 
+    let cancelled = false;
     void (async () => {
       try {
-        setStatus("initializing");
-        const client = await createAuthClient(createOptions);
-        authClientRef.current = client;
+        const client = await createAuthClient(createOptionsRef.current);
+        if (cancelled) return;
+        setAuthClient(client);
         const isAuthenticated = await client.isAuthenticated();
+        if (cancelled) return;
         if (isAuthenticated) {
-          const loadedIdentity = client.getIdentity();
-          setIdentity(loadedIdentity);
-          setStatus("success");
-        } else {
-          setStatus("idle");
+          setIdentity(client.getIdentity());
         }
       } catch (unknownError) {
-        setStatus("loginError");
-        setError(
-          unknownError instanceof Error
-            ? unknownError
-            : new Error("Initialization failed"),
-        );
+        if (!cancelled) {
+          setStatus("loginError");
+          setError(
+            unknownError instanceof Error
+              ? unknownError
+              : new Error("Initialization failed"),
+          );
+        }
+      } finally {
+        if (!cancelled) setStatus("idle");
       }
     })();
-    // Intentionally empty deps — runs exactly once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const value = useMemo<ProviderValue>(
