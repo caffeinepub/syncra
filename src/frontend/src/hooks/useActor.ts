@@ -26,14 +26,14 @@ export function useActor() {
 
       const actor = await createActorWithConfig(actorOptions);
 
-      // Wrap access control init in try-catch — if CAFFEINE_ADMIN_TOKEN is
-      // missing or the call traps, we still return a working actor so all
-      // normal backend calls (registerBusiness, getCallerUserProfile, etc.) work.
+      // Wrap access control init in try-catch — if env var is missing it should not kill the actor
       try {
         const adminToken = getSecretParameter("caffeineAdminToken") || "";
         await actor._initializeAccessControlWithSecret(adminToken);
       } catch {
-        // Access control init failed — actor is still functional for normal calls
+        // Access control init failed (e.g. missing CAFFEINE_ADMIN_TOKEN env var)
+        // This is non-fatal — normal app calls will still work
+        console.warn("Access control initialization skipped (non-fatal)");
       }
 
       return actor;

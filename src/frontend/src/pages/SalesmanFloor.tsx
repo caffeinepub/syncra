@@ -220,7 +220,7 @@ export function SalesmanFloor() {
                       className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
                       style={{
                         background: "oklch(0.72 0.18 155)",
-                        color: "oklch(0.08 0.01 264)",
+                        color: "oklch(0.08 0.01 50)",
                       }}
                     >
                       {cartTotalQty}
@@ -245,7 +245,7 @@ export function SalesmanFloor() {
                   style={{
                     background:
                       "linear-gradient(135deg, oklch(0.72 0.18 155), oklch(0.68 0.18 170))",
-                    color: "oklch(0.08 0.01 264)",
+                    color: "oklch(0.08 0.01 50)",
                   }}
                 >
                   Review Bill
@@ -305,7 +305,7 @@ export function SalesmanFloor() {
                   className="absolute top-1 right-3 h-3.5 min-w-3.5 px-0.5 rounded-full text-[9px] font-bold flex items-center justify-center"
                   style={{
                     background: "oklch(0.72 0.18 155)",
-                    color: "oklch(0.08 0.01 264)",
+                    color: "oklch(0.08 0.01 50)",
                   }}
                 >
                   {cartTotalQty}

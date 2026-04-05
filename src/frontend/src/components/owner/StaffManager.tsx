@@ -111,8 +111,8 @@ export function StaffManager() {
           size="sm"
           className="gap-1.5"
           style={{
-            background: "oklch(0.72 0.14 195)",
-            color: "oklch(0.08 0.01 264)",
+            background: "oklch(0.78 0.18 75)",
+            color: "oklch(0.08 0.01 50)",
           }}
           onClick={() => setShowInvite(true)}
           data-ocid="staff.open_modal_button"
@@ -127,7 +127,7 @@ export function StaffManager() {
         <MiniStat
           label="Total Invites"
           value={(invites ?? []).length}
-          color="oklch(0.72 0.14 195)"
+          color="oklch(0.78 0.18 75)"
         />
         <MiniStat
           label="Active"
@@ -270,8 +270,8 @@ export function StaffManager() {
               disabled={!contactInfo.trim() || inviteMutation.isPending}
               onClick={() => void handleInvite()}
               style={{
-                background: "oklch(0.72 0.14 195)",
-                color: "oklch(0.08 0.01 264)",
+                background: "oklch(0.78 0.18 75)",
+                color: "oklch(0.08 0.01 50)",
               }}
               data-ocid="staff.submit_button"
             >
@@ -383,8 +383,8 @@ function InviteRow({
         <div
           className="h-9 w-9 rounded-full flex items-center justify-center shrink-0"
           style={{
-            background: "oklch(0.72 0.14 195 / 0.1)",
-            color: "oklch(0.72 0.14 195)",
+            background: "oklch(0.78 0.18 75 / 0.1)",
+            color: "oklch(0.78 0.18 75)",
           }}
         >
           {isEmail ? (
@@ -449,9 +449,9 @@ function EmptyState({ onInvite }: { onInvite: () => void }) {
     >
       <div
         className="inline-flex items-center justify-center h-14 w-14 rounded-2xl mb-4"
-        style={{ background: "oklch(0.72 0.14 195 / 0.1)" }}
+        style={{ background: "oklch(0.78 0.18 75 / 0.1)" }}
       >
-        <Users className="h-7 w-7" style={{ color: "oklch(0.72 0.14 195)" }} />
+        <Users className="h-7 w-7" style={{ color: "oklch(0.78 0.18 75)" }} />
       </div>
       <p className="font-semibold text-foreground mb-1">No staff yet</p>
       <p className="text-sm text-muted-foreground mb-4">
@@ -461,8 +461,8 @@ function EmptyState({ onInvite }: { onInvite: () => void }) {
         size="sm"
         onClick={onInvite}
         style={{
-          background: "oklch(0.72 0.14 195)",
-          color: "oklch(0.08 0.01 264)",
+          background: "oklch(0.78 0.18 75)",
+          color: "oklch(0.08 0.01 50)",
         }}
         data-ocid="staff.primary_button"
       >

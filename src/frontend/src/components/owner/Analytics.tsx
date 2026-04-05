@@ -87,7 +87,7 @@ export function Analytics() {
           label="Total Bills"
           value={billsLoading ? null : (totalBills ?? BigInt(0)).toString()}
           icon={<Receipt className="h-5 w-5" />}
-          color="oklch(0.72 0.14 195)"
+          color="oklch(0.78 0.18 75)"
           sub="All time"
         />
         <StatCard
@@ -107,7 +107,7 @@ export function Analytics() {
           label="Finalized Bills"
           value={finalizedBillsCount.toString()}
           icon={<Clock className="h-5 w-5" />}
-          color="oklch(0.68 0.18 285)"
+          color="oklch(0.62 0.18 280)"
           sub={
             filter === "today"
               ? "Today"
@@ -129,12 +129,12 @@ export function Analytics() {
             >
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: 11, fill: "oklch(0.58 0.015 264)" }}
+                tick={{ fontSize: 11, fill: "oklch(0.55 0.018 75)" }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fontSize: 10, fill: "oklch(0.58 0.015 264)" }}
+                tick={{ fontSize: 10, fill: "oklch(0.55 0.018 75)" }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
@@ -145,16 +145,16 @@ export function Analytics() {
                   "Revenue",
                 ]}
                 contentStyle={{
-                  background: "oklch(0.15 0.015 264)",
-                  border: "1px solid oklch(0.28 0.02 264)",
+                  background: "oklch(0.14 0.018 50)",
+                  border: "1px solid oklch(0.28 0.02 50)",
                   borderRadius: "8px",
                   fontSize: "12px",
                 }}
-                labelStyle={{ color: "oklch(0.72 0.14 195)" }}
+                labelStyle={{ color: "oklch(0.78 0.18 75)" }}
               />
               <Bar
                 dataKey="revenue"
-                fill="oklch(0.72 0.14 195)"
+                fill="oklch(0.78 0.18 75)"
                 radius={[4, 4, 0, 0]}
               />
             </BarChart>
@@ -197,8 +197,8 @@ export function Analytics() {
                 style={
                   filter === f
                     ? {
-                        background: "oklch(0.72 0.14 195)",
-                        color: "oklch(0.08 0.01 264)",
+                        background: "oklch(0.78 0.18 75)",
+                        color: "oklch(0.08 0.01 50)",
                       }
                     : {}
                 }
@@ -347,15 +347,15 @@ function BillHistoryRow({
           <span
             className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[9px] font-bold shrink-0"
             style={{
-              background: "oklch(0.72 0.14 195 / 0.25)",
-              color: "oklch(0.72 0.14 195)",
+              background: "oklch(0.78 0.18 75 / 0.25)",
+              color: "oklch(0.78 0.18 75)",
             }}
           >
             {initials}
           </span>
           <span
             className="text-xs font-medium"
-            style={{ color: "oklch(0.72 0.14 195)" }}
+            style={{ color: "oklch(0.78 0.18 75)" }}
           >
             {salesmanName}
           </span>
@@ -398,9 +398,9 @@ function ActivityLogRow({
         <div
           className="flex-shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full text-xs font-bold"
           style={{
-            background: "oklch(0.72 0.14 195 / 0.18)",
-            color: "oklch(0.72 0.14 195)",
-            border: "1px solid oklch(0.72 0.14 195 / 0.3)",
+            background: "oklch(0.78 0.18 75 / 0.18)",
+            color: "oklch(0.78 0.18 75)",
+            border: "1px solid oklch(0.78 0.18 75 / 0.3)",
           }}
         >
           {initials}
@@ -411,7 +411,7 @@ function ActivityLogRow({
           {/* Salesman name label */}
           <p
             className="text-xs font-semibold mb-0.5"
-            style={{ color: "oklch(0.72 0.14 195)" }}
+            style={{ color: "oklch(0.78 0.18 75)" }}
           >
             {salesmanName}
           </p>

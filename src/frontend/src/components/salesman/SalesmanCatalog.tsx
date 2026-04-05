@@ -78,8 +78,8 @@ export function SalesmanCatalog({ onSelectProduct }: Props) {
               style={
                 activeCategory === null
                   ? {
-                      background: "oklch(0.72 0.14 195)",
-                      color: "oklch(0.08 0.01 264)",
+                      background: "oklch(0.78 0.18 75)",
+                      color: "oklch(0.08 0.01 50)",
                     }
                   : {}
               }
@@ -102,8 +102,8 @@ export function SalesmanCatalog({ onSelectProduct }: Props) {
                 style={
                   activeCategory === cat
                     ? {
-                        background: "oklch(0.72 0.14 195)",
-                        color: "oklch(0.08 0.01 264)",
+                        background: "oklch(0.78 0.18 75)",
+                        color: "oklch(0.08 0.01 50)",
                       }
                     : {}
                 }
@@ -157,11 +157,9 @@ function ProductTile({
   index: number;
   onClick: () => void;
 }) {
-  const hues = [195, 155, 285, 73, 25];
+  const hues = [75, 155, 280, 25, 120];
   const hue = hues[index % hues.length];
 
-  // Check if all variants are sold out (simple check on basePrice=0 as fallback;
-  // actual stock tracked by variants; here we just show a hint via product.isActive)
   const imgUrl =
     product.imageUrls.length > 0 ? safeGetURL(product.imageUrls[0]) : "";
 
@@ -239,12 +237,9 @@ function EmptyState() {
     >
       <div
         className="inline-flex items-center justify-center h-14 w-14 rounded-2xl mb-4"
-        style={{ background: "oklch(0.72 0.14 195 / 0.1)" }}
+        style={{ background: "oklch(0.78 0.18 75 / 0.1)" }}
       >
-        <Package
-          className="h-7 w-7"
-          style={{ color: "oklch(0.72 0.14 195)" }}
-        />
+        <Package className="h-7 w-7" style={{ color: "oklch(0.78 0.18 75)" }} />
       </div>
       <p className="font-semibold text-foreground mb-1">Catalog is empty</p>
       <p className="text-sm text-muted-foreground">

@@ -358,9 +358,9 @@ export function ProductDetailPage({
                     variant="outline"
                     className="text-xs"
                     style={{
-                      borderColor: "oklch(0.72 0.14 195 / 0.4)",
-                      color: "oklch(0.72 0.14 195)",
-                      background: "oklch(0.72 0.14 195 / 0.1)",
+                      borderColor: "oklch(0.78 0.18 75 / 0.4)",
+                      color: "oklch(0.78 0.18 75)",
+                      background: "oklch(0.78 0.18 75 / 0.1)",
                     }}
                   >
                     {product.category}
@@ -440,7 +440,7 @@ export function ProductDetailPage({
               style={{
                 background:
                   "linear-gradient(135deg, oklch(0.72 0.18 155), oklch(0.68 0.18 170))",
-                color: "oklch(0.08 0.01 264)",
+                color: "oklch(0.08 0.01 50)",
               }}
               onClick={() => setShowBillModal(true)}
             >
@@ -517,7 +517,7 @@ export function ProductDetailPage({
                 className="w-full"
                 style={{
                   background: "oklch(0.78 0.17 73)",
-                  color: "oklch(0.08 0.01 264)",
+                  color: "oklch(0.08 0.01 50)",
                 }}
                 onClick={async () => {
                   const variantToLock = selectedVariantForLock;
@@ -660,7 +660,7 @@ export function ProductDetailPage({
               onClick={() => void handleGenerateBill()}
               style={{
                 background: "oklch(0.72 0.18 155)",
-                color: "oklch(0.08 0.01 264)",
+                color: "oklch(0.08 0.01 50)",
               }}
             >
               {createBill.isPending ? (
@@ -830,9 +830,9 @@ function VariantTile({
     variant.stockCount > BigInt(0) &&
     variant.stockCount < BigInt(3);
 
-  let borderColor = "oklch(0.28 0.02 264)";
-  let bgColor = "oklch(0.18 0.015 264)";
-  let textColor = "oklch(0.96 0.005 264)";
+  let borderColor = "oklch(0.28 0.02 50)";
+  let bgColor = "oklch(0.14 0.018 50)";
+  let textColor = "oklch(0.96 0.008 75)";
 
   if (isMyLock) {
     borderColor = "oklch(0.78 0.17 73 / 0.6)";

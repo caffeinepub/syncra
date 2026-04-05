@@ -74,8 +74,8 @@ export function SalesmanBills() {
             style={
               statusFilter === f
                 ? {
-                    background: "oklch(0.72 0.14 195)",
-                    color: "oklch(0.08 0.01 264)",
+                    background: "oklch(0.78 0.18 75)",
+                    color: "oklch(0.08 0.01 50)",
                   }
                 : {}
             }
@@ -199,7 +199,7 @@ function BillDetailSheet({
               <SheetTitle className="font-display text-base flex items-center gap-2">
                 <Receipt
                   className="h-4 w-4"
-                  style={{ color: "oklch(0.72 0.14 195)" }}
+                  style={{ color: "oklch(0.78 0.18 75)" }}
                 />
                 Bill #{bill.id.toString().slice(-8).padStart(8, "0")}
               </SheetTitle>
@@ -268,8 +268,8 @@ function BillDetailSheet({
                         <span
                           className="inline-flex items-center justify-center h-6 min-w-6 px-1.5 rounded-lg text-xs font-bold"
                           style={{
-                            background: "oklch(0.72 0.14 195 / 0.15)",
-                            color: "oklch(0.72 0.14 195)",
+                            background: "oklch(0.78 0.18 75 / 0.15)",
+                            color: "oklch(0.78 0.18 75)",
                           }}
                         >
                           ×{qty}
@@ -378,12 +378,9 @@ function EmptyState() {
     >
       <div
         className="inline-flex items-center justify-center h-14 w-14 rounded-2xl mb-4"
-        style={{ background: "oklch(0.72 0.14 195 / 0.1)" }}
+        style={{ background: "oklch(0.78 0.18 75 / 0.1)" }}
       >
-        <Receipt
-          className="h-7 w-7"
-          style={{ color: "oklch(0.72 0.14 195)" }}
-        />
+        <Receipt className="h-7 w-7" style={{ color: "oklch(0.78 0.18 75)" }} />
       </div>
       <p className="font-semibold text-foreground mb-1">No bills yet</p>
       <p className="text-sm text-muted-foreground">

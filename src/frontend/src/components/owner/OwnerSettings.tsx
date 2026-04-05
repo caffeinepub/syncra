@@ -67,8 +67,8 @@ export function OwnerSettings() {
           <div
             className="h-10 w-10 rounded-xl flex items-center justify-center"
             style={{
-              background: "oklch(0.72 0.14 195 / 0.15)",
-              color: "oklch(0.72 0.14 195)",
+              background: "oklch(0.78 0.18 75 / 0.15)",
+              color: "oklch(0.78 0.18 75)",
             }}
           >
             <Building2 className="h-5 w-5" />
@@ -104,8 +104,8 @@ export function OwnerSettings() {
           <div
             className="h-10 w-10 rounded-xl flex items-center justify-center"
             style={{
-              background: "oklch(0.72 0.14 195 / 0.15)",
-              color: "oklch(0.72 0.14 195)",
+              background: "oklch(0.78 0.18 75 / 0.15)",
+              color: "oklch(0.78 0.18 75)",
             }}
           >
             {theme === "dark" ? (
@@ -135,8 +135,8 @@ export function OwnerSettings() {
             style={
               theme === "dark"
                 ? {
-                    background: "oklch(0.72 0.14 195)",
-                    color: "oklch(0.08 0.01 264)",
+                    background: "oklch(0.78 0.18 75)",
+                    color: "oklch(0.08 0.01 50)",
                   }
                 : {}
             }
@@ -156,8 +156,8 @@ export function OwnerSettings() {
             style={
               theme === "light"
                 ? {
-                    background: "oklch(0.72 0.14 195)",
-                    color: "oklch(0.08 0.01 264)",
+                    background: "oklch(0.78 0.18 75)",
+                    color: "oklch(0.08 0.01 50)",
                   }
                 : {}
             }
@@ -224,7 +224,7 @@ export function OwnerSettings() {
                 className="w-fit gap-1.5"
                 style={{
                   background: "oklch(0.72 0.18 155)",
-                  color: "oklch(0.08 0.01 264)",
+                  color: "oklch(0.08 0.01 50)",
                 }}
                 onClick={() => upgradeMutation.mutate()}
                 disabled={upgradeMutation.isPending}

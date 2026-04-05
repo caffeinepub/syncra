@@ -32,11 +32,11 @@ export function SyncraLogo({ size = "md", showText = true }: Props) {
             y2="32"
             gradientUnits="userSpaceOnUse"
           >
-            <stop offset="0%" stopColor="oklch(0.72 0.14 195)" />
-            <stop offset="100%" stopColor="oklch(0.65 0.18 220)" />
+            <stop offset="0%" stopColor="oklch(0.78 0.18 75)" />
+            <stop offset="100%" stopColor="oklch(0.65 0.18 75)" />
           </linearGradient>
         </defs>
-        <rect width="32" height="32" rx="8" fill="oklch(0.22 0.025 264)" />
+        <rect width="32" height="32" rx="8" fill="oklch(0.18 0.025 50)" />
         <path
           d="M8 12c0-2.2 1.8-4 4-4h4c2.2 0 4 1.8 4 4s-1.8 4-4 4H12c-2.2 0-4 1.8-4 4s1.8 4 4 4h8"
           stroke="url(#syncra-grad)"
@@ -49,7 +49,7 @@ export function SyncraLogo({ size = "md", showText = true }: Props) {
       {showText && (
         <span
           className={`font-display font-bold tracking-tight ${text}`}
-          style={{ color: "oklch(0.96 0.005 264)" }}
+          style={{ color: "oklch(0.96 0.008 75)" }}
         >
           Syncra
         </span>

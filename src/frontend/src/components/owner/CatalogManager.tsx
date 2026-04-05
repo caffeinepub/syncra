@@ -96,8 +96,8 @@ export function CatalogManager() {
           size="sm"
           className="gap-1.5 shrink-0"
           style={{
-            background: "oklch(0.72 0.14 195)",
-            color: "oklch(0.08 0.01 264)",
+            background: "oklch(0.78 0.18 75)",
+            color: "oklch(0.08 0.01 50)",
           }}
           onClick={handleOpenAddProduct}
         >
@@ -278,8 +278,8 @@ function ProductCard({
           size="sm"
           className="w-full gap-1.5 h-8 text-xs"
           style={{
-            background: "oklch(0.72 0.14 195)",
-            color: "oklch(0.08 0.01 264)",
+            background: "oklch(0.78 0.18 75)",
+            color: "oklch(0.08 0.01 50)",
           }}
           onClick={onEdit}
         >
@@ -727,8 +727,8 @@ function ProductFormDialog({
             disabled={!form.name || !form.sku || isPending || isReadingFiles}
             onClick={() => void onSubmit(form)}
             style={{
-              background: "oklch(0.72 0.14 195)",
-              color: "oklch(0.08 0.01 264)",
+              background: "oklch(0.78 0.18 75)",
+              color: "oklch(0.08 0.01 50)",
             }}
           >
             {isPending ? (
@@ -883,8 +883,8 @@ function VariantManagerDialog({
                             }).then(() => setEditingVariant(null))
                           }
                           style={{
-                            background: "oklch(0.72 0.14 195)",
-                            color: "oklch(0.08 0.01 264)",
+                            background: "oklch(0.78 0.18 75)",
+                            color: "oklch(0.08 0.01 50)",
                           }}
                         >
                           {editPending ? (
@@ -1037,8 +1037,8 @@ function VariantManagerDialog({
                 }).then(() => setNewVariant({ name: "", stock: "", price: "" }))
               }
               style={{
-                background: "oklch(0.72 0.14 195)",
-                color: "oklch(0.08 0.01 264)",
+                background: "oklch(0.78 0.18 75)",
+                color: "oklch(0.08 0.01 50)",
               }}
             >
               {addPending ? (
@@ -1072,12 +1072,9 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
     <div className="glass-card rounded-2xl p-16 text-center">
       <div
         className="inline-flex items-center justify-center h-16 w-16 rounded-2xl mb-4"
-        style={{ background: "oklch(0.72 0.14 195 / 0.1)" }}
+        style={{ background: "oklch(0.78 0.18 75 / 0.1)" }}
       >
-        <Package
-          className="h-8 w-8"
-          style={{ color: "oklch(0.72 0.14 195)" }}
-        />
+        <Package className="h-8 w-8" style={{ color: "oklch(0.78 0.18 75)" }} />
       </div>
       <p className="font-semibold text-foreground mb-1">No products yet</p>
       <p className="text-sm text-muted-foreground mb-4">
@@ -1087,8 +1084,8 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         size="sm"
         onClick={onAdd}
         style={{
-          background: "oklch(0.72 0.14 195)",
-          color: "oklch(0.08 0.01 264)",
+          background: "oklch(0.78 0.18 75)",
+          color: "oklch(0.08 0.01 50)",
         }}
       >
         <Plus className="h-4 w-4 mr-1.5" />

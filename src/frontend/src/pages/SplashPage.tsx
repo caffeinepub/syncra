@@ -76,28 +76,29 @@ export function SplashPage() {
 
   return (
     <div className="mesh-bg min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      {/* Decorative background elements */}
+      {/* Decorative amber blob — top right */}
       <div
-        className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-5 blur-3xl pointer-events-none"
+        className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-8 blur-3xl pointer-events-none"
         style={{
           background:
-            "radial-gradient(circle, oklch(0.72 0.14 195), transparent)",
+            "radial-gradient(circle, oklch(0.78 0.18 75), transparent)",
         }}
       />
+      {/* Decorative violet blob — bottom left */}
       <div
         className="absolute bottom-0 left-0 w-64 h-64 rounded-full opacity-5 blur-3xl pointer-events-none"
         style={{
           background:
-            "radial-gradient(circle, oklch(0.65 0.18 270), transparent)",
+            "radial-gradient(circle, oklch(0.62 0.18 280), transparent)",
         }}
       />
 
-      {/* Grid pattern overlay */}
+      {/* Subtle grid overlay */}
       <div
-        className="absolute inset-0 pointer-events-none opacity-[0.02]"
+        className="absolute inset-0 pointer-events-none opacity-[0.025]"
         style={{
           backgroundImage:
-            "linear-gradient(oklch(0.9 0.01 264) 1px, transparent 1px), linear-gradient(90deg, oklch(0.9 0.01 264) 1px, transparent 1px)",
+            "linear-gradient(oklch(0.78 0.18 75) 1px, transparent 1px), linear-gradient(90deg, oklch(0.78 0.18 75) 1px, transparent 1px)",
           backgroundSize: "40px 40px",
         }}
       />
@@ -169,14 +170,15 @@ export function SplashPage() {
             >
               <Button
                 size="lg"
-                className="w-full gap-2 h-12 text-base font-semibold glow-cyan"
+                className="w-full gap-2 h-12 text-base font-semibold glow-amber"
                 style={{
                   background:
-                    "linear-gradient(135deg, oklch(0.72 0.14 195), oklch(0.65 0.18 210))",
-                  color: "oklch(0.08 0.01 264)",
+                    "linear-gradient(135deg, oklch(0.78 0.18 75), oklch(0.65 0.18 75))",
+                  color: "oklch(0.08 0.01 50)",
                 }}
                 onClick={handleConnect}
                 disabled={isLoading}
+                data-ocid="splash.primary_button"
               >
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -247,13 +249,13 @@ function RoleCard({
           ? "border-primary/50 bg-primary/10 shadow-glow"
           : "glass-card hover:border-border hover:bg-accent/30"
       }`}
-      style={selected ? { borderColor: "oklch(0.72 0.14 195 / 0.5)" } : {}}
+      style={selected ? { borderColor: "oklch(0.78 0.18 75 / 0.5)" } : {}}
     >
       <div
         className={`mb-3 transition-colors ${
           selected ? "text-primary" : "text-muted-foreground"
         }`}
-        style={selected ? { color: "oklch(0.72 0.14 195)" } : {}}
+        style={selected ? { color: "oklch(0.78 0.18 75)" } : {}}
       >
         {icon}
       </div>

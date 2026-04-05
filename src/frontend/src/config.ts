@@ -7,6 +7,7 @@ import {
 import { StorageClient } from "./utils/StorageClient";
 import { HttpAgent } from "@icp-sdk/core/agent";
 
+// Hardcoded fallbacks — process.env is NOT available in Vite browser builds
 const DEFAULT_STORAGE_GATEWAY_URL = "https://blob.caffeine.ai";
 const DEFAULT_BUCKET_NAME = "default-bucket";
 const DEFAULT_PROJECT_ID = "0000000-0000-0000-0000-00000000000";
@@ -33,24 +34,32 @@ export async function loadConfig(): Promise<Config> {
   if (configCache) {
     return configCache;
   }
-  const backendCanisterId = process.env.CANISTER_ID_BACKEND;
-  const envBaseUrl = process.env.BASE_URL || "/";
+
+  // import.meta.env is the correct Vite way to read env vars in browser code
+  const backendCanisterId = import.meta.env.VITE_CANISTER_ID_BACKEND as string | undefined;
+  const envBaseUrl = (import.meta.env.BASE_URL as string | undefined) || "/";
   const baseUrl = envBaseUrl.endsWith("/") ? envBaseUrl : `${envBaseUrl}/`;
+
   try {
     const response = await fetch(`${baseUrl}env.json`);
     const config = (await response.json()) as JsonConfig;
-    if (!backendCanisterId && config.backend_canister_id === "undefined") {
+
+    const resolvedCanisterId =
+      config.backend_canister_id !== "undefined"
+        ? config.backend_canister_id
+        : backendCanisterId;
+
+    if (!resolvedCanisterId) {
       console.error("CANISTER_ID_BACKEND is not set");
       throw new Error("CANISTER_ID_BACKEND is not set");
     }
 
-    const fullConfig = {
+    const fullConfig: Config = {
       backend_host:
         config.backend_host === "undefined" ? undefined : config.backend_host,
-      backend_canister_id: (config.backend_canister_id === "undefined"
-        ? backendCanisterId
-        : config.backend_canister_id) as string,
-      storage_gateway_url: process.env.STORAGE_GATEWAY_URL ?? "nogateway",
+      backend_canister_id: resolvedCanisterId,
+      // Use hardcoded fallback — process.env.STORAGE_GATEWAY_URL is always undefined in Vite
+      storage_gateway_url: DEFAULT_STORAGE_GATEWAY_URL,
       bucket_name: DEFAULT_BUCKET_NAME,
       project_id:
         config.project_id !== "undefined"
@@ -65,10 +74,12 @@ export async function loadConfig(): Promise<Config> {
     return fullConfig;
   } catch {
     if (!backendCanisterId) {
-      console.error("CANISTER_ID_BACKEND is not set");
+      // Try reading from env.json directly via a re-fetch won't help here,
+      // so look for the canister id in a known location
+      console.error("CANISTER_ID_BACKEND is not set and env.json failed");
       throw new Error("CANISTER_ID_BACKEND is not set");
     }
-    const fallbackConfig = {
+    const fallbackConfig: Config = {
       backend_host: undefined,
       backend_canister_id: backendCanisterId,
       storage_gateway_url: DEFAULT_STORAGE_GATEWAY_URL,
@@ -99,17 +110,12 @@ async function maybeLoadMockBackend(): Promise<backendInterface | null> {
   }
 
   try {
-    // If VITE_USE_MOCK is enabled, try to load a mock backend module *if it exists*.
-    // We use import.meta.glob so builds don't fail when the mock file is absent.
     const mockModules = import.meta.glob("./mocks/backend.{ts,tsx,js,jsx}");
-
     const path = Object.keys(mockModules)[0];
     if (!path) return null;
-
     const mod = (await mockModules[path]()) as {
       mockBackend?: backendInterface;
     };
-
     return mod.mockBackend ?? null;
   } catch {
     return null;
@@ -119,7 +125,6 @@ async function maybeLoadMockBackend(): Promise<backendInterface | null> {
 export async function createActorWithConfig(
   options?: CreateActorOptions,
 ): Promise<backendInterface> {
-  // Attempt to load mock backend if enabled
   const mock = await maybeLoadMockBackend();
   if (mock) {
     return mock;

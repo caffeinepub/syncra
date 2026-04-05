@@ -341,7 +341,7 @@ export function BillReviewSheet({
                 style={{
                   background:
                     "linear-gradient(135deg, oklch(0.72 0.18 155), oklch(0.68 0.18 170))",
-                  color: "oklch(0.08 0.01 264)",
+                  color: "oklch(0.08 0.01 50)",
                 }}
                 disabled={createBill.isPending}
                 onClick={() => void handleConfirm()}

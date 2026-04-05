@@ -116,8 +116,8 @@ export function SalesmanActivation() {
             <div
               className="h-14 w-14 rounded-2xl flex items-center justify-center mx-auto"
               style={{
-                background: "oklch(0.72 0.14 195 / 0.15)",
-                color: "oklch(0.72 0.14 195)",
+                background: "oklch(0.78 0.18 75 / 0.15)",
+                color: "oklch(0.78 0.18 75)",
               }}
             >
               <LogIn className="h-7 w-7" />
@@ -137,8 +137,8 @@ export function SalesmanActivation() {
               className="w-full gap-2"
               style={{
                 background:
-                  "linear-gradient(135deg, oklch(0.72 0.14 195), oklch(0.65 0.18 210))",
-                color: "oklch(0.08 0.01 264)",
+                  "linear-gradient(135deg, oklch(0.78 0.18 75), oklch(0.65 0.18 75))",
+                color: "oklch(0.08 0.01 50)",
               }}
               onClick={login}
               disabled={isLoggingIn}
@@ -207,8 +207,8 @@ export function SalesmanActivation() {
                 style={
                   i === step
                     ? {
-                        background: "oklch(0.72 0.14 195)",
-                        color: "oklch(0.08 0.01 264)",
+                        background: "oklch(0.78 0.18 75)",
+                        color: "oklch(0.08 0.01 50)",
                       }
                     : {}
                 }
@@ -268,8 +268,8 @@ export function SalesmanActivation() {
                     size="sm"
                     className="gap-1.5"
                     style={{
-                      background: "oklch(0.72 0.14 195)",
-                      color: "oklch(0.08 0.01 264)",
+                      background: "oklch(0.78 0.18 75)",
+                      color: "oklch(0.08 0.01 50)",
                     }}
                   >
                     {isSubmitting ? (
@@ -331,8 +331,8 @@ export function SalesmanActivation() {
                     size="sm"
                     className="gap-1.5"
                     style={{
-                      background: "oklch(0.72 0.14 195)",
-                      color: "oklch(0.08 0.01 264)",
+                      background: "oklch(0.78 0.18 75)",
+                      color: "oklch(0.08 0.01 50)",
                     }}
                   >
                     Set PIN & Continue
@@ -385,7 +385,7 @@ export function SalesmanActivation() {
                     className="gap-1.5"
                     style={{
                       background: "oklch(0.72 0.18 155)",
-                      color: "oklch(0.08 0.01 264)",
+                      color: "oklch(0.08 0.01 50)",
                     }}
                   >
                     {isSubmitting ? (

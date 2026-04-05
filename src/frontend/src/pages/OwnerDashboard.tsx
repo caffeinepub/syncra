@@ -80,8 +80,8 @@ export function OwnerDashboard() {
                 style={
                   section === item.id
                     ? {
-                        color: "oklch(0.72 0.14 195)",
-                        background: "oklch(0.72 0.14 195 / 0.1)",
+                        color: "oklch(0.78 0.18 75)",
+                        background: "oklch(0.78 0.18 75 / 0.1)",
                       }
                     : {}
                 }
@@ -99,8 +99,8 @@ export function OwnerDashboard() {
                 <AvatarFallback
                   className="text-xs font-bold"
                   style={{
-                    background: "oklch(0.72 0.14 195 / 0.2)",
-                    color: "oklch(0.72 0.14 195)",
+                    background: "oklch(0.78 0.18 75 / 0.2)",
+                    color: "oklch(0.78 0.18 75)",
                   }}
                 >
                   {initials}
@@ -143,8 +143,8 @@ export function OwnerDashboard() {
               style={
                 section === item.id
                   ? {
-                      background: "oklch(0.72 0.14 195)",
-                      color: "oklch(0.08 0.01 264)",
+                      background: "oklch(0.78 0.18 75)",
+                      color: "oklch(0.08 0.01 50)",
                     }
                   : {}
               }

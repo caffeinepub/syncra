@@ -74,9 +74,9 @@ export function SalesmanProfile() {
               variant="outline"
               className="text-xs"
               style={{
-                borderColor: "oklch(0.72 0.14 195 / 0.4)",
-                color: "oklch(0.72 0.14 195)",
-                background: "oklch(0.72 0.14 195 / 0.1)",
+                borderColor: "oklch(0.78 0.18 75 / 0.4)",
+                color: "oklch(0.78 0.18 75)",
+                background: "oklch(0.78 0.18 75 / 0.1)",
               }}
             >
               Salesman
@@ -100,7 +100,7 @@ export function SalesmanProfile() {
           label="Bills Today"
           value={todayBills.length}
           icon={<Calendar className="h-4 w-4" />}
-          color="oklch(0.72 0.14 195)"
+          color="oklch(0.78 0.18 75)"
         />
         <StatCard
           label="Total Bills"
@@ -140,8 +140,8 @@ export function SalesmanProfile() {
               style={
                 theme === "dark"
                   ? {
-                      background: "oklch(0.72 0.14 195)",
-                      color: "oklch(0.08 0.01 264)",
+                      background: "oklch(0.78 0.18 75)",
+                      color: "oklch(0.08 0.01 50)",
                     }
                   : {}
               }
@@ -161,8 +161,8 @@ export function SalesmanProfile() {
               style={
                 theme === "light"
                   ? {
-                      background: "oklch(0.72 0.14 195)",
-                      color: "oklch(0.08 0.01 264)",
+                      background: "oklch(0.78 0.18 75)",
+                      color: "oklch(0.08 0.01 50)",
                     }
                   : {}
               }

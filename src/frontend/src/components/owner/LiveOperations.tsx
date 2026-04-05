@@ -88,7 +88,7 @@ export function LiveOperations() {
         <StatCard
           label="Locked Items"
           value={lockedItemCount}
-          color="oklch(0.72 0.14 195)"
+          color="oklch(0.78 0.18 75)"
           icon={<Package className="h-5 w-5" />}
         />
         <StatCard
@@ -197,16 +197,16 @@ function BillCard({
             <div
               className="flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium"
               style={{
-                background: "oklch(0.72 0.14 195 / 0.12)",
-                border: "1px solid oklch(0.72 0.14 195 / 0.25)",
-                color: "oklch(0.72 0.14 195)",
+                background: "oklch(0.78 0.18 75 / 0.12)",
+                border: "1px solid oklch(0.78 0.18 75 / 0.25)",
+                color: "oklch(0.78 0.18 75)",
               }}
             >
               {/* Avatar circle with initials */}
               <span
                 className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[9px] font-bold shrink-0"
                 style={{
-                  background: "oklch(0.72 0.14 195 / 0.3)",
+                  background: "oklch(0.78 0.18 75 / 0.3)",
                   color: "oklch(0.92 0.04 195)",
                 }}
               >
