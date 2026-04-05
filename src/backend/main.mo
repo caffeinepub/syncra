@@ -1,4 +1,5 @@
 // CONTAINS CANISTER SPECIFIC TYPES AND FILTER FOR EXTENSION PATTERN
+
 import Text "mo:core/Text";
 import Array "mo:core/Array";
 import Nat "mo:core/Nat";
@@ -9,11 +10,11 @@ import Principal "mo:core/Principal";
 import Iter "mo:core/Iter";
 import Runtime "mo:core/Runtime";
 
-
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 import Storage "blob-storage/Storage";
 import MixinStorage "blob-storage/Mixin";
+
 
 // Apply migration on upgrade
 
@@ -312,6 +313,14 @@ actor {
       Runtime.trap("Unauthorized: Only users can save profiles");
     };
 
+    // Check if user already has a profile
+    switch (getUserByPrincipal(caller)) {
+      case (?existingProfile) {
+        Runtime.trap("User profile already exists");
+      };
+      case (null) {};
+    };
+
     // Verify business exists
     let business = switch (businesses.get(businessId)) {
       case (null) { Runtime.trap("Business not found") };
@@ -321,8 +330,16 @@ actor {
     // Authorization check based on role
     switch (role) {
       case (#owner) {
+        // Only the actual business owner can register as owner
         if (business.owner != caller) {
-          Runtime.trap("Only the business owner can register as owner");
+          Runtime.trap("Unauthorized: Only the business owner can register as owner");
+        };
+        
+        // Verify no other user is already registered as owner for this business
+        for ((userId, user) in users.entries()) {
+          if (user.businessId == businessId and user.role == #owner) {
+            Runtime.trap("Business already has an owner registered");
+          };
         };
       };
       case (#salesman) {
@@ -338,7 +355,7 @@ actor {
 
         switch (foundInvite) {
           case (null) {
-            Runtime.trap("No valid invite found for this salesman");
+            Runtime.trap("Unauthorized: No valid invite found for this salesman");
           };
           case (?invite) {
             // Mark invite as accepted
@@ -378,16 +395,23 @@ actor {
       Runtime.trap("Unauthorized: Only authenticated users can view user profiles");
     };
 
+    // Admin can view any user
+    if (AccessControl.isAdmin(accessControlState, caller)) {
+      return users.get(userId);
+    };
+
     let callerUserOpt = getUserByPrincipal(caller);
     let targetUserOpt = users.get(userId);
 
     switch (callerUserOpt, targetUserOpt) {
-      case (null, _) { null };
+      case (null, _) { 
+        Runtime.trap("Caller user profile not found");
+      };
       case (_, null) { null };
       case (?callerUser, ?targetUser) {
         // Can only view users in same business
         if (callerUser.businessId != targetUser.businessId) {
-          return null;
+          Runtime.trap("Unauthorized: Can only view users in your business");
         };
         ?targetUser;
       };
@@ -425,6 +449,17 @@ actor {
         Runtime.trap("Unauthorized: Can only view your own profile");
       };
     };
+  };
+
+  public query ({ caller }) func getStaffForBusiness(businessId : Nat) : async [UserProfile] {
+    ignore requireOwner(caller, businessId);
+
+    let staffArray = users.values().filter(
+        func(profile) {
+          profile.businessId == businessId;
+        }
+      ).toArray();
+    staffArray.sort(Comparison.compareUsersById);
   };
 
   // =========================
@@ -830,7 +865,7 @@ actor {
     };
 
     if (not canRelease) {
-      Runtime.trap("Only the locker or business owner can release this lock");
+      Runtime.trap("Unauthorized: Only the locker or business owner can release this lock");
     };
 
     let updated = {
@@ -845,6 +880,33 @@ actor {
     variants.add(variantId, updated);
 
     logActivity(user.userId, product.businessId, "release_variant", variantId.toText());
+  };
+
+  public shared ({ caller }) func resetVariantState(variantId : Nat) : async () {
+    let variant = switch (variants.get(variantId)) {
+      case (null) { Runtime.trap("Variant not found") };
+      case (?v) { v };
+    };
+
+    let product = switch (productStore.get(variant.productId)) {
+      case (null) { Runtime.trap("Product not found") };
+      case (?p) { p };
+    };
+
+    let ownerUser = requireOwner(caller, product.businessId);
+
+    let updated = {
+      id = variant.id;
+      productId = variant.productId;
+      variantName = variant.variantName;
+      price = variant.price;
+      stockCount = variant.stockCount;
+      state = #available;
+      lockedBy = null;
+    };
+    variants.add(variantId, updated);
+
+    logActivity(ownerUser.userId, product.businessId, "reset_variant_state", variantId.toText());
   };
 
   public query ({ caller }) func getVariantsForProduct(productId : Nat) : async [ProductVariant] {
@@ -913,7 +975,7 @@ actor {
       switch (variant.lockedBy) {
         case (?lockerId) {
           if (lockerId != user.userId) {
-            Runtime.trap("Variant is locked by another user");
+            Runtime.trap("Unauthorized: Variant is locked by another user");
           };
         };
         case (null) {
@@ -1055,6 +1117,26 @@ actor {
         },
       ).toArray();
     billArray.sort(Comparison.compareBillsById);
+  };
+
+  public query ({ caller }) func getBillsForSalesman(salesmanId : Nat, businessId : Nat) : async [BillToken] {
+    ignore requireOwner(caller, businessId);
+
+    bills.values().filter(
+        func(bill) {
+          bill.businessId == businessId and bill.salesmanId == salesmanId;
+        }
+      ).toArray();
+  };
+
+  public query ({ caller }) func getSalesmanBills(businessId : Nat) : async [BillToken] {
+    let user = requireSalesman(caller, businessId);
+
+    bills.values().filter(
+        func(bill) {
+          bill.businessId == businessId and bill.salesmanId == user.userId;
+        }
+      ).toArray();
   };
 
   public query ({ caller }) func getPendingBills(businessId : Nat) : async [BillToken] {

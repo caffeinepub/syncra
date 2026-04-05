@@ -28,7 +28,6 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-// Import the concrete ExternalBlob class for static methods (fromBytes, fromURL, etc.)
 import { ExternalBlob as ExternalBlobImpl } from "../../backend";
 import type { ExternalBlob, Product } from "../../backend.d";
 import { safeGetURL } from "../../utils/blob";
@@ -53,7 +52,6 @@ export function CatalogManager() {
   const addProduct = useAddProduct();
   const editProduct = useEditProduct();
   const addVariant = useAddVariant();
-  const editVariant = useEditVariant();
 
   const [search, setSearch] = useState("");
   const [showAddProduct, setShowAddProduct] = useState(false);
@@ -75,42 +73,65 @@ export function CatalogManager() {
     setShowAddProduct(true);
   };
 
-  const handleCloseAddProduct = () => {
-    setShowAddProduct(false);
-  };
-
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Toolbar */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-48">
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search by name, SKU, or category..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-input/50"
+            className="pl-9 h-10 bg-input/60 border-border/50"
+            data-ocid="catalog.search_input"
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
         <Button
           size="sm"
-          className="gap-1.5 shrink-0"
-          style={{
-            background: "oklch(0.78 0.18 75)",
-            color: "oklch(0.08 0.01 50)",
-          }}
+          className="gap-1.5 shrink-0 h-10 btn-amber"
           onClick={handleOpenAddProduct}
+          data-ocid="catalog.open_modal_button"
         >
           <Plus className="h-4 w-4" />
           Add Product
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-        <span>{(products ?? []).length} products</span>
-        <span>•</span>
-        <span>{(products ?? []).filter((p) => p.isActive).length} active</span>
+      {/* Stats row */}
+      <div className="flex items-center gap-4 text-sm">
+        <span
+          className="px-3 py-1 rounded-full text-xs font-medium"
+          style={{
+            background: "oklch(0.78 0.19 72 / 0.1)",
+            color: "oklch(0.78 0.19 72)",
+          }}
+        >
+          {(products ?? []).length} products
+        </span>
+        <span
+          className="px-3 py-1 rounded-full text-xs font-medium"
+          style={{
+            background: "oklch(0.72 0.18 155 / 0.1)",
+            color: "oklch(0.72 0.18 155)",
+          }}
+        >
+          {(products ?? []).filter((p) => p.isActive).length} active
+        </span>
+        {search && filtered.length !== (products ?? []).length && (
+          <span className="text-muted-foreground text-xs">
+            {filtered.length} matching
+          </span>
+        )}
       </div>
 
       {/* Grid */}
@@ -132,85 +153,91 @@ export function CatalogManager() {
         </div>
       )}
 
-      {/* Add Product Dialog — key forces remount on each open, resetting all state */}
-      <ProductFormDialog
-        key={`add-${addProductKey}`}
-        open={showAddProduct}
-        onClose={handleCloseAddProduct}
-        onSubmit={async (data) => {
-          if (!business?.id) return;
-          const productId = await addProduct.mutateAsync({
-            ...data,
-            imageUrls: data.imageUrls,
-            businessId: business.id,
-            basePrice: BigInt(
-              Math.round(Number.parseFloat(data.basePrice || "0") * 100),
-            ),
-          });
-          // Add inline variants sequentially
-          for (const v of data.variants) {
-            if (v.variantName.trim()) {
-              await addVariant.mutateAsync({
-                productId,
-                variantName: v.variantName.trim(),
-                stockCount: BigInt(v.stockCount || "0"),
-                price: BigInt(
-                  Math.round(Number.parseFloat(v.price || "0") * 100),
+      {/* Add product dialog */}
+      {showAddProduct && (
+        <ProductFormDialog
+          key={addProductKey}
+          mode="add"
+          onClose={() => setShowAddProduct(false)}
+          onSave={async (data) => {
+            if (!business?.id) return;
+            try {
+              const productId = await addProduct.mutateAsync({
+                businessId: business.id,
+                name: data.name,
+                sku: data.sku,
+                category: data.category,
+                description: data.description,
+                imageUrls: data.imageUrls,
+                isActive: data.isActive,
+                basePrice: BigInt(
+                  Math.round(Number.parseFloat(data.basePrice || "0") * 100),
                 ),
               });
+              if (productId && data.variants && data.variants.length > 0) {
+                for (const v of data.variants) {
+                  if (!v.variantName.trim()) continue;
+                  await addVariant.mutateAsync({
+                    productId,
+                    variantName: v.variantName.trim(),
+                    stockCount: BigInt(
+                      Number.parseInt(v.stockCount || "0", 10),
+                    ),
+                    price: v.price
+                      ? BigInt(Math.round(Number.parseFloat(v.price) * 100))
+                      : BigInt(
+                          Math.round(
+                            Number.parseFloat(data.basePrice || "0") * 100,
+                          ),
+                        ),
+                  });
+                }
+              }
+              setShowAddProduct(false);
+              toast.success(`${data.name} added successfully!`);
+            } catch (e: unknown) {
+              const msg = e instanceof Error ? e.message : String(e);
+              toast.error(`Failed to add product: ${msg}`);
             }
-          }
-          setShowAddProduct(false);
-        }}
-        isPending={addProduct.isPending || addVariant.isPending}
-      />
-
-      {/* Edit Product Dialog */}
-      {editingProduct && (
-        <ProductFormDialog
-          key={`edit-${editingProduct.id.toString()}`}
-          open={!!editingProduct}
-          onClose={() => setEditingProduct(null)}
-          initialData={editingProduct}
-          onSubmit={async (data) => {
-            // Convert already-uploaded blobs to fromURL to avoid re-upload errors
-            const safeImageUrls = data.imageUrls.map((blob) => {
-              const url = safeGetURL(blob);
-              return url ? ExternalBlobImpl.fromURL(url) : blob;
-            });
-            await editProduct.mutateAsync({
-              ...data,
-              imageUrls: safeImageUrls,
-              productId: editingProduct.id,
-              basePrice: BigInt(
-                Math.round(Number.parseFloat(data.basePrice || "0") * 100),
-              ),
-            });
-            setEditingProduct(null);
           }}
-          isPending={editProduct.isPending}
         />
       )}
 
-      {/* Variant Manager Dialog */}
+      {/* Edit product dialog */}
+      {editingProduct && (
+        <ProductFormDialog
+          mode="edit"
+          initialData={editingProduct}
+          onClose={() => setEditingProduct(null)}
+          onSave={async (data) => {
+            try {
+              await editProduct.mutateAsync({
+                productId: editingProduct.id,
+                name: data.name,
+                sku: data.sku,
+                category: data.category,
+                description: data.description,
+                imageUrls: data.imageUrls,
+                isActive: data.isActive,
+                basePrice: BigInt(
+                  Math.round(Number.parseFloat(data.basePrice || "0") * 100),
+                ),
+              });
+              setEditingProduct(null);
+              toast.success(`${data.name} updated!`);
+            } catch (e: unknown) {
+              const msg = e instanceof Error ? e.message : String(e);
+              toast.error(`Failed to update product: ${msg}`);
+            }
+          }}
+        />
+      )}
+
+      {/* Variant manager dialog */}
       {managingVariants && (
         <VariantManagerDialog
           product={managingVariants}
-          open={!!managingVariants}
           onClose={() => setManagingVariants(null)}
-          onAddVariant={async (data) => {
-            await addVariant.mutateAsync({
-              productId: managingVariants.id,
-              variantName: data.variantName,
-              stockCount: data.stockCount,
-              price: data.price,
-            });
-          }}
-          onEditVariant={async (data) => {
-            await editVariant.mutateAsync(data);
-          }}
-          addPending={addVariant.isPending}
-          editPending={editVariant.isPending}
         />
       )}
     </div>
@@ -228,18 +255,24 @@ function ProductCard({
   onEdit: () => void;
   onManageVariants: () => void;
 }) {
+  const hues = [72, 155, 280, 68, 25];
+  const hue = hues[index % hues.length];
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.03 }}
-      className={`glass-card rounded-xl overflow-hidden group relative transition-all duration-200 ${!product.isActive ? "opacity-50" : ""}`}
+      transition={{ delay: index * 0.025, duration: 0.3 }}
+      className={`glass-card rounded-2xl overflow-hidden group relative flex flex-col transition-all duration-200 hover:shadow-glow-sm ${
+        !product.isActive ? "opacity-50" : ""
+      }`}
+      data-ocid={`catalog.item.${index + 1}`}
     >
-      {/* Image placeholder */}
+      {/* Image */}
       <div
-        className="aspect-square flex items-center justify-center"
+        className="aspect-square flex items-center justify-center relative overflow-hidden"
         style={{
-          background: `linear-gradient(135deg, oklch(0.22 0.02 ${200 + (index % 5) * 20}) 0%, oklch(0.18 0.02 ${220 + (index % 5) * 15}) 100%)`,
+          background: `linear-gradient(135deg, oklch(0.20 0.025 ${hue}) 0%, oklch(0.16 0.018 ${hue + 20}) 100%)`,
         }}
       >
         {product.imageUrls.length > 0 && safeGetURL(product.imageUrls[0]) ? (
@@ -250,47 +283,57 @@ function ProductCard({
             loading="lazy"
           />
         ) : (
-          <Package className="h-10 w-10 text-muted-foreground/30" />
+          <Package
+            className="h-10 w-10 opacity-20"
+            style={{ color: `oklch(0.78 0.19 ${hue})` }}
+          />
         )}
         {!product.isActive && (
-          <div className="absolute inset-0 bg-background/50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
             <Badge variant="outline" className="text-xs">
               Inactive
             </Badge>
           </div>
         )}
+        {/* Base price chip */}
+        <div
+          className="absolute bottom-2 right-2 px-2 py-0.5 rounded-lg text-xs font-bold"
+          style={{
+            background: "oklch(0.08 0.012 45 / 0.75)",
+            color: "oklch(0.88 0.16 72)",
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          \u20b9
+          {Math.round(Number(product.basePrice) / 100).toLocaleString("en-IN")}
+        </div>
       </div>
 
       {/* Info */}
-      <div className="p-3">
+      <div className="p-3 flex-1">
         <p className="text-sm font-semibold truncate">{product.name}</p>
-        <p className="text-xs text-muted-foreground truncate mb-2">
+        <p className="text-xs text-muted-foreground truncate">
           {product.category}
-        </p>
-        <p className="font-mono text-[10px] text-muted-foreground/70">
-          SKU: {product.sku}
         </p>
       </div>
 
       {/* Action overlay */}
-      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-3">
+      <div className="absolute inset-0 bg-background/85 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-200 flex flex-col items-center justify-center gap-2 p-3">
         <Button
           size="sm"
-          className="w-full gap-1.5 h-8 text-xs"
-          style={{
-            background: "oklch(0.78 0.18 75)",
-            color: "oklch(0.08 0.01 50)",
-          }}
+          className="w-full gap-1.5 h-9 text-xs btn-amber"
           onClick={onEdit}
+          data-ocid={`catalog.edit_button.${index + 1}`}
         >
           <Edit className="h-3.5 w-3.5" />
-          Edit Product
+          Edit
         </Button>
         <Button
           size="sm"
           variant="outline"
-          className="w-full gap-1.5 h-8 text-xs"
+          className="w-full gap-1.5 h-9 text-xs"
           onClick={onManageVariants}
+          data-ocid={`catalog.secondary_button.${index + 1}`}
         >
           <Layers className="h-3.5 w-3.5" />
           Variants
@@ -314,7 +357,6 @@ interface ProductFormData {
   imageUrls: ExternalBlob[];
   isActive: boolean;
   basePrice: string;
-  /** Only used on Add (not Edit) */
   variants: InlineVariant[];
 }
 
@@ -330,422 +372,416 @@ const DEFAULT_FORM: ProductFormData = {
 };
 
 function ProductFormDialog({
-  open,
-  onClose,
+  mode,
   initialData,
-  onSubmit,
-  isPending,
+  onClose,
+  onSave,
 }: {
-  open: boolean;
-  onClose: () => void;
+  mode: "add" | "edit";
   initialData?: Product;
-  onSubmit: (data: ProductFormData) => Promise<void>;
-  isPending: boolean;
+  onClose: () => void;
+  onSave: (data: ProductFormData) => Promise<void>;
 }) {
   const { actor } = useActor();
+  const [isSaving, setIsSaving] = useState(false);
+  const [localPreviews, setLocalPreviews] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [form, setForm] = useState<ProductFormData>({
-    name: initialData?.name ?? "",
-    sku: initialData?.sku ?? "",
-    category: initialData?.category ?? "",
-    description: initialData?.description ?? "",
-    imageUrls: initialData?.imageUrls ?? [],
-    isActive: initialData?.isActive ?? true,
-    basePrice:
-      initialData?.basePrice && initialData.basePrice > 0n
-        ? (Number(initialData.basePrice) / 100).toString()
-        : "",
-    variants: [],
+  const [form, setForm] = useState<ProductFormData>(() => {
+    if (mode === "edit" && initialData) {
+      return {
+        name: initialData.name,
+        sku: initialData.sku,
+        category: initialData.category,
+        description: initialData.description,
+        imageUrls: initialData.imageUrls,
+        isActive: initialData.isActive,
+        basePrice: initialData.basePrice
+          ? String(Math.round(Number(initialData.basePrice) / 100))
+          : "",
+        variants: [],
+      };
+    }
+    return DEFAULT_FORM;
   });
-  const [isReadingFiles, setIsReadingFiles] = useState(false);
-  const [localPreviews, setLocalPreviews] = useState<string[]>(
-    initialData?.imageUrls?.map((img) => safeGetURL(img)).filter(Boolean) ?? [],
-  );
 
-  // New variant input state
-  const [newVariantName, setNewVariantName] = useState("");
-  const [newVariantPrice, setNewVariantPrice] = useState("");
-  const [newVariantStock, setNewVariantStock] = useState("");
-
-  // Reset form when dialog re-opens (key prop on parent handles add-mode resets;
-  // this handles the case where the same dialog instance becomes visible again)
-  const prevOpenRef = useRef(false);
-  useEffect(() => {
-    const wasOpen = prevOpenRef.current;
-    prevOpenRef.current = open;
-    if (open && !wasOpen && !initialData) {
-      setForm(DEFAULT_FORM);
-      setLocalPreviews([]);
-      setIsReadingFiles(false);
-      setNewVariantName("");
-      setNewVariantPrice("");
-      setNewVariantStock("");
-    }
-  }, [open, initialData]);
-
-  const set =
-    (
-      key: keyof Pick<
-        ProductFormData,
-        "name" | "sku" | "category" | "description" | "basePrice"
-      >,
-    ) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setForm((f) => ({ ...f, [key]: e.target.value }));
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    if (files.length === 0) return;
-    // Suppress actor unused warning — actor may be needed for future blob ops
-    void actor;
-    setIsReadingFiles(true);
-    try {
-      const newBlobs: ExternalBlob[] = [];
-      const newPreviews: string[] = [];
-      for (const file of files) {
-        // Create a local object URL for immediate visual preview
-        const previewUrl = URL.createObjectURL(file);
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        // ExternalBlob.fromBytes creates a lazy blob — it will be uploaded
-        // to the backend when passed to actor.addProduct / actor.editProduct.
-        // We do NOT call withUploadProgress here because the upload happens
-        // during form submit (isPending on the submit button covers that UX).
-        const blob = ExternalBlobImpl.fromBytes(bytes);
-        newBlobs.push(blob);
-        newPreviews.push(previewUrl);
-      }
-      // Batch-update state once after reading all files
-      setForm((f) => ({ ...f, imageUrls: [...f.imageUrls, ...newBlobs] }));
-      setLocalPreviews((prev) => [...prev, ...newPreviews]);
-    } catch (err) {
-      console.error("Image read error:", err);
-      toast.error("Failed to read image file. Please try again.");
-    } finally {
-      setIsReadingFiles(false);
-      e.target.value = "";
+    if (!files.length) return;
+    for (const file of files) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const preview = ev.target?.result as string;
+        setLocalPreviews((prev) => [...prev, preview]);
+        const blob = ExternalBlobImpl.fromURL(preview);
+        setForm((f) => ({ ...f, imageUrls: [...f.imageUrls, blob] }));
+      };
+      reader.readAsDataURL(file);
     }
+    e.target.value = "";
   };
 
-  const removeImage = (index: number) => {
-    // Revoke the object URL to free memory if it's a local preview
-    const preview = localPreviews[index];
-    if (preview?.startsWith("blob:")) {
-      URL.revokeObjectURL(preview);
-    }
+  const removePhoto = (index: number) => {
+    setLocalPreviews((prev) => prev.filter((_, i) => i !== index));
     setForm((f) => ({
       ...f,
       imageUrls: f.imageUrls.filter((_, i) => i !== index),
     }));
-    setLocalPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const addInlineVariant = () => {
-    if (!newVariantName.trim()) return;
+  const addVariantRow = () => {
     setForm((f) => ({
       ...f,
-      variants: [
-        ...f.variants,
-        {
-          variantName: newVariantName.trim(),
-          stockCount: newVariantStock,
-          price: newVariantPrice,
-        },
-      ],
-    }));
-    setNewVariantName("");
-    setNewVariantPrice("");
-    setNewVariantStock("");
-  };
-
-  const removeInlineVariant = (index: number) => {
-    setForm((f) => ({
-      ...f,
-      variants: f.variants.filter((_, i) => i !== index),
+      variants: [...f.variants, { variantName: "", stockCount: "", price: "" }],
     }));
   };
 
-  const handleCancel = () => {
-    // Revoke all local object URLs to free memory
-    for (const url of localPreviews) {
-      if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+  const updateVariant = (
+    i: number,
+    field: keyof InlineVariant,
+    value: string,
+  ) => {
+    setForm((f) => ({
+      ...f,
+      variants: f.variants.map((v, idx) =>
+        idx === i ? { ...v, [field]: value } : v,
+      ),
+    }));
+  };
+
+  const removeVariant = (i: number) => {
+    setForm((f) => ({
+      ...f,
+      variants: f.variants.filter((_, idx) => idx !== i),
+    }));
+  };
+
+  const handleSave = async () => {
+    if (!form.name.trim()) {
+      toast.error("Product name is required");
+      return;
     }
-    setForm(DEFAULT_FORM);
-    setLocalPreviews([]);
-    setIsReadingFiles(false);
-    setNewVariantName("");
-    setNewVariantPrice("");
-    setNewVariantStock("");
-    onClose();
+    if (!form.sku.trim()) {
+      toast.error("SKU is required");
+      return;
+    }
+    if (!form.basePrice || Number.isNaN(Number.parseFloat(form.basePrice))) {
+      toast.error("Base price is required");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const uploaded: ExternalBlob[] = [];
+      for (const img of form.imageUrls) {
+        const url = safeGetURL(img);
+        if (url && !url.startsWith("data:")) {
+          uploaded.push(img);
+        } else if (url?.startsWith("data:") && actor) {
+          try {
+            const resp = await fetch(url);
+            const buffer = await resp.arrayBuffer();
+            const bytes = new Uint8Array(buffer);
+            const stored = ExternalBlobImpl.fromBytes(bytes);
+            uploaded.push(stored);
+          } catch {
+            uploaded.push(img);
+          }
+        }
+      }
+      await onSave({ ...form, imageUrls: uploaded });
+    } finally {
+      setIsSaving(false);
+    }
   };
-
-  const isAddMode = !initialData;
 
   return (
-    <Dialog open={open} onOpenChange={handleCancel}>
-      <DialogContent className="max-w-md glass-card border-border/50">
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent
+        className="max-w-lg max-h-[90vh] overflow-y-auto"
+        data-ocid="catalog.dialog"
+      >
         <DialogHeader>
           <DialogTitle className="font-display">
-            {initialData ? "Edit Product" : "Add Product"}
+            {mode === "add" ? "Add New Product" : "Edit Product"}
           </DialogTitle>
         </DialogHeader>
-        <ScrollArea className="max-h-[70vh]">
-          <div className="space-y-3 py-2 pr-1">
-            <Field label="Product Name">
-              <Input
-                value={form.name}
-                onChange={set("name")}
-                placeholder="e.g. Classic Denim Jacket"
-                className="bg-input/50"
-              />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="SKU">
-                <Input
-                  value={form.sku}
-                  onChange={set("sku")}
-                  placeholder="SKU-001"
-                  className="bg-input/50 font-mono"
-                />
-              </Field>
-              <Field label="Category">
-                <Input
-                  value={form.category}
-                  onChange={set("category")}
-                  placeholder="Jackets"
-                  className="bg-input/50"
-                />
-              </Field>
-            </div>
-            <Field label="Description">
-              <Textarea
-                value={form.description}
-                onChange={set("description")}
-                placeholder="Product description for salesmen to reference..."
-                className="bg-input/50 resize-none h-24"
-              />
-            </Field>
 
-            <Field label="Base Price (₹)">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                  ₹
-                </span>
-                <Input
-                  type="number"
-                  value={form.basePrice}
-                  onChange={set("basePrice")}
-                  placeholder="e.g. 499"
-                  className="pl-7 bg-input/50"
-                  min={0}
-                  step={1}
-                />
-              </div>
-              <p className="text-[11px] text-muted-foreground/70 mt-1">
-                Default price shown to salesmen. You can override per variant.
-              </p>
-            </Field>
-
-            {/* Image upload */}
-            <Field label="Product Photos">
-              <div className="space-y-2">
-                {localPreviews.length > 0 && (
-                  <div className="flex gap-2 flex-wrap">
-                    {localPreviews.map((preview, i) => (
-                      <div
-                        // biome-ignore lint/suspicious/noArrayIndexKey: stable list
-                        key={i}
-                        className="relative w-20 h-20 rounded-lg overflow-hidden border border-border/50"
-                      >
-                        <img
-                          src={preview}
-                          alt={`Uploaded ${i + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeImage(i)}
-                          className="absolute top-0.5 right-0.5 bg-destructive/80 rounded-full p-0.5 text-white hover:bg-destructive transition-colors"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <label
-                  className={`flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg border border-dashed border-border/50 hover:border-primary/50 transition-colors text-sm text-muted-foreground hover:text-foreground ${isReadingFiles ? "opacity-60 cursor-not-allowed" : ""}`}
+        <div className="space-y-5 py-2">
+          {/* Photos */}
+          <div>
+            <Label className="text-sm font-medium mb-2 block">Photos</Label>
+            <div className="flex gap-2 flex-wrap">
+              {localPreviews.map((preview) => (
+                <div
+                  key={preview.slice(-40)}
+                  className="relative h-16 w-16 rounded-xl overflow-hidden"
                 >
-                  {isReadingFiles ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Reading photo…
-                    </>
-                  ) : (
-                    <>
-                      <ImagePlus className="h-4 w-4" />
-                      Add Photos
-                    </>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => void handleImageUpload(e)}
-                    disabled={isReadingFiles}
+                  <img
+                    src={preview}
+                    alt=""
+                    className="w-full h-full object-cover"
                   />
-                </label>
-              </div>
-            </Field>
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(localPreviews.indexOf(preview))}
+                    className="absolute top-0.5 right-0.5 h-5 w-5 rounded-full bg-destructive/90 flex items-center justify-center"
+                  >
+                    <X className="h-3 w-3 text-white" />
+                  </button>
+                </div>
+              ))}
+              {mode === "edit" &&
+                form.imageUrls
+                  .filter((u) => {
+                    const url = safeGetURL(u);
+                    return url && !url.startsWith("data:");
+                  })
+                  .map((img) => (
+                    <div
+                      key={`existing-${safeGetURL(img) ?? Math.random()}`}
+                      className="h-16 w-16 rounded-xl overflow-hidden"
+                    >
+                      <img
+                        src={safeGetURL(img) ?? ""}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ))}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="h-16 w-16 rounded-xl border-2 border-dashed border-border/60 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors"
+                data-ocid="catalog.upload_button"
+              >
+                <ImagePlus className="h-5 w-5" />
+                <span className="text-[9px]">Add</span>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handlePhotoSelect}
+              />
+            </div>
+          </div>
 
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">Active</Label>
+          {/* Basic fields */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <Label
+                htmlFor="pname"
+                className="text-sm font-medium mb-1.5 block"
+              >
+                Name
+              </Label>
+              <Input
+                id="pname"
+                value={form.name}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, name: e.target.value }))
+                }
+                placeholder="e.g. Premium Denim Jeans"
+                className="bg-input/60 border-border/50"
+                data-ocid="catalog.input"
+              />
+            </div>
+            <div>
+              <Label
+                htmlFor="psku"
+                className="text-sm font-medium mb-1.5 block"
+              >
+                SKU
+              </Label>
+              <Input
+                id="psku"
+                value={form.sku}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, sku: e.target.value }))
+                }
+                placeholder="DNM-001"
+                className="bg-input/60 border-border/50"
+              />
+            </div>
+            <div>
+              <Label
+                htmlFor="pcat"
+                className="text-sm font-medium mb-1.5 block"
+              >
+                Category
+              </Label>
+              <Input
+                id="pcat"
+                value={form.category}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, category: e.target.value }))
+                }
+                placeholder="Bottoms"
+                className="bg-input/60 border-border/50"
+              />
+            </div>
+            <div className="col-span-2">
+              <Label
+                htmlFor="pprice"
+                className="text-sm font-medium mb-1.5 block"
+              >
+                Base Price (\u20b9)
+              </Label>
+              <Input
+                id="pprice"
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.basePrice}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, basePrice: e.target.value }))
+                }
+                placeholder="1499"
+                className="bg-input/60 border-border/50"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Variants can override this price
+              </p>
+            </div>
+            <div className="col-span-2">
+              <Label
+                htmlFor="pdesc"
+                className="text-sm font-medium mb-1.5 block"
+              >
+                Description
+              </Label>
+              <Textarea
+                id="pdesc"
+                value={form.description}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, description: e.target.value }))
+                }
+                placeholder="Product details..."
+                className="bg-input/60 border-border/50 resize-none"
+                rows={2}
+              />
+            </div>
+            <div className="col-span-2 flex items-center gap-3">
               <Switch
                 checked={form.isActive}
                 onCheckedChange={(v) => setForm((f) => ({ ...f, isActive: v }))}
+                data-ocid="catalog.switch"
               />
+              <Label className="text-sm">Active (visible to salesmen)</Label>
             </div>
-
-            {/* Inline Variants — only shown in Add mode */}
-            {isAddMode && (
-              <div className="border-t border-border/50 pt-3">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                  Variants &amp; Stock
-                </p>
-
-                {/* Existing inline variants */}
-                {form.variants.length > 0 && (
-                  <div className="space-y-1.5 mb-2">
-                    {form.variants.map((v, i) => (
-                      <div
-                        // biome-ignore lint/suspicious/noArrayIndexKey: stable list
-                        key={i}
-                        className="flex items-center gap-2 bg-input/30 rounded-lg px-3 py-1.5"
-                      >
-                        <span className="flex-1 text-sm font-medium truncate">
-                          {v.variantName}
-                        </span>
-                        {v.price ? (
-                          <span
-                            className="text-xs font-semibold shrink-0"
-                            style={{ color: "oklch(0.72 0.18 155)" }}
-                          >
-                            ₹{v.price}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground/60 shrink-0 italic">
-                            ₹ Base
-                          </span>
-                        )}
-                        <span className="text-xs text-muted-foreground shrink-0">
-                          Qty: {v.stockCount || "0"}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => removeInlineVariant(i)}
-                          className="p-0.5 rounded text-muted-foreground hover:text-destructive transition-colors shrink-0"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Add new variant row */}
-                <div className="flex gap-2 items-center flex-wrap">
-                  <Input
-                    placeholder="Variant (e.g. Size M)"
-                    value={newVariantName}
-                    onChange={(e) => setNewVariantName(e.target.value)}
-                    className="h-8 text-sm bg-input/50 flex-1 min-w-28"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        addInlineVariant();
-                      }
-                    }}
-                  />
-                  <div className="relative w-24 shrink-0">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">
-                      ₹
-                    </span>
-                    <Input
-                      type="number"
-                      placeholder="Price"
-                      value={newVariantPrice}
-                      onChange={(e) => setNewVariantPrice(e.target.value)}
-                      className="h-8 text-sm bg-input/50 pl-5"
-                      min={0}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          addInlineVariant();
-                        }
-                      }}
-                    />
-                  </div>
-                  <Input
-                    type="number"
-                    placeholder="Qty"
-                    value={newVariantStock}
-                    onChange={(e) => setNewVariantStock(e.target.value)}
-                    className="h-8 text-sm bg-input/50 w-16 shrink-0"
-                    min={0}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        addInlineVariant();
-                      }
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-8 px-2 shrink-0"
-                    disabled={!newVariantName.trim()}
-                    onClick={addInlineVariant}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-                <p className="text-[11px] text-muted-foreground/70 mt-1.5">
-                  Leave price blank to use the base price for that variant. Add
-                  all sizes/colours before saving.
-                </p>
-              </div>
-            )}
           </div>
-        </ScrollArea>
+
+          {/* Variants (add mode only) */}
+          {mode === "add" && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-sm font-medium">Variants & Stock</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1 text-xs"
+                  onClick={addVariantRow}
+                  data-ocid="catalog.secondary_button"
+                >
+                  <Plus className="h-3 w-3" /> Add Variant
+                </Button>
+              </div>
+              {form.variants.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-2">
+                  No variants — you can add them after saving the product.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {form.variants.map((v, i) => (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: variant form rows
+                    <div key={i} className="flex gap-2 items-end">
+                      <div className="flex-1">
+                        {i === 0 && (
+                          <p className="text-[10px] text-muted-foreground mb-1">
+                            Name
+                          </p>
+                        )}
+                        <Input
+                          value={v.variantName}
+                          onChange={(e) =>
+                            updateVariant(i, "variantName", e.target.value)
+                          }
+                          placeholder="e.g. Size M"
+                          className="bg-input/60 border-border/50 h-8 text-sm"
+                        />
+                      </div>
+                      <div className="w-20">
+                        {i === 0 && (
+                          <p className="text-[10px] text-muted-foreground mb-1">
+                            Stock
+                          </p>
+                        )}
+                        <Input
+                          value={v.stockCount}
+                          onChange={(e) =>
+                            updateVariant(i, "stockCount", e.target.value)
+                          }
+                          placeholder="0"
+                          type="number"
+                          min="0"
+                          className="bg-input/60 border-border/50 h-8 text-sm"
+                        />
+                      </div>
+                      <div className="w-24">
+                        {i === 0 && (
+                          <p className="text-[10px] text-muted-foreground mb-1">
+                            Price (\u20b9)
+                          </p>
+                        )}
+                        <Input
+                          value={v.price}
+                          onChange={(e) =>
+                            updateVariant(i, "price", e.target.value)
+                          }
+                          placeholder="base"
+                          type="number"
+                          min="0"
+                          className="bg-input/60 border-border/50 h-8 text-sm"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeVariant(i)}
+                        className="text-muted-foreground hover:text-destructive transition-colors mb-0.5"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <DialogFooter>
-          <Button variant="outline" size="sm" onClick={handleCancel}>
+          <Button
+            variant="outline"
+            onClick={onClose}
+            data-ocid="catalog.cancel_button"
+          >
             Cancel
           </Button>
           <Button
-            size="sm"
-            disabled={!form.name || !form.sku || isPending || isReadingFiles}
-            onClick={() => void onSubmit(form)}
-            style={{
-              background: "oklch(0.78 0.18 75)",
-              color: "oklch(0.08 0.01 50)",
-            }}
+            onClick={handleSave}
+            disabled={isSaving}
+            className="gap-1.5 btn-amber"
+            data-ocid="catalog.submit_button"
           >
-            {isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-                {isAddMode ? "Adding..." : "Saving…"}
-              </>
-            ) : isReadingFiles ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-                Reading…
-              </>
-            ) : initialData ? (
-              "Save Changes"
-            ) : (
-              "Add Product"
-            )}
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {isSaving
+              ? "Saving..."
+              : mode === "add"
+                ? "Add Product"
+                : "Save Changes"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -755,340 +791,231 @@ function ProductFormDialog({
 
 function VariantManagerDialog({
   product,
-  open,
   onClose,
-  onAddVariant,
-  onEditVariant,
-  addPending,
-  editPending,
-}: {
-  product: Product;
-  open: boolean;
-  onClose: () => void;
-  onAddVariant: (data: {
-    variantName: string;
-    stockCount: bigint;
-    price: bigint;
-  }) => Promise<void>;
-  onEditVariant: (data: {
-    variantId: bigint;
-    variantName: string;
-    stockCount: bigint;
-    price: bigint;
-  }) => Promise<void>;
-  addPending: boolean;
-  editPending: boolean;
-}) {
+}: { product: Product; onClose: () => void }) {
   const { data: variants, isLoading } = useProductVariants(product.id);
+  const addVariant = useAddVariant();
   const resetVariant = useResetVariantToAvailable();
-  const [newVariant, setNewVariant] = useState({
-    name: "",
-    stock: "",
-    price: "",
-  });
-  const [editingVariant, setEditingVariant] = useState<{
-    id: bigint;
-    name: string;
-    stock: string;
-    price: string;
-  } | null>(null);
+
+  const [newVariantName, setNewVariantName] = useState("");
+  const [newVariantStock, setNewVariantStock] = useState("");
+  const [newVariantPrice, setNewVariantPrice] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
+  const [resettingIds, setResettingIds] = useState<Set<string>>(new Set());
+
+  const handleAddVariant = async () => {
+    if (!newVariantName.trim()) return;
+    setIsAdding(true);
+    try {
+      await addVariant.mutateAsync({
+        productId: product.id,
+        variantName: newVariantName.trim(),
+        stockCount: BigInt(Number.parseInt(newVariantStock || "0", 10)),
+        price: newVariantPrice
+          ? BigInt(Math.round(Number.parseFloat(newVariantPrice) * 100))
+          : product.basePrice,
+      });
+      setNewVariantName("");
+      setNewVariantStock("");
+      setNewVariantPrice("");
+      toast.success("Variant added!");
+    } catch (e: unknown) {
+      toast.error(`Failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleReset = async (variantId: bigint) => {
+    const idStr = variantId.toString();
+    setResettingIds((prev) => new Set(prev).add(idStr));
+    try {
+      await resetVariant.mutateAsync(variantId);
+      toast.success("Variant reset to Available");
+    } catch {
+      toast.error("Failed to reset variant");
+    } finally {
+      setResettingIds((prev) => {
+        const s = new Set(prev);
+        s.delete(idStr);
+        return s;
+      });
+    }
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md glass-card border-border/50">
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg" data-ocid="catalog.dialog">
         <DialogHeader>
-          <DialogTitle className="font-display">Manage Variants</DialogTitle>
-          <p className="text-sm text-muted-foreground">{product.name}</p>
+          <DialogTitle className="font-display">
+            <span className="flex items-center gap-2">
+              <Layers
+                className="h-5 w-5"
+                style={{ color: "oklch(0.78 0.19 72)" }}
+              />
+              {product.name} — Variants
+            </span>
+          </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Existing variants */}
-          <ScrollArea className="max-h-64">
-            {isLoading ? (
-              <div className="space-y-2">
-                {[1, 2].map((i) => (
-                  <div key={i} className="skeleton h-12 rounded-lg" />
-                ))}
-              </div>
-            ) : (variants ?? []).length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No variants yet
-              </p>
-            ) : (
-              <div className="space-y-2 pr-2">
-                {(variants ?? []).map((v) =>
-                  editingVariant?.id === v.id ? (
-                    <div
-                      key={v.id.toString()}
-                      className="glass-card rounded-lg p-3 space-y-2"
-                    >
-                      <div className="grid grid-cols-3 gap-2">
-                        <Input
-                          value={editingVariant.name}
-                          onChange={(e) =>
-                            setEditingVariant(
-                              (ev) => ev && { ...ev, name: e.target.value },
-                            )
-                          }
-                          className="h-8 text-sm bg-input/50"
-                          placeholder="Variant name"
-                        />
-                        <div className="relative">
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">
-                            ₹
-                          </span>
-                          <Input
-                            type="number"
-                            value={editingVariant.price}
-                            onChange={(e) =>
-                              setEditingVariant(
-                                (ev) => ev && { ...ev, price: e.target.value },
-                              )
-                            }
-                            className="h-8 text-sm bg-input/50 pl-5"
-                            placeholder="Price"
-                            min={0}
-                          />
-                        </div>
-                        <Input
-                          type="number"
-                          value={editingVariant.stock}
-                          onChange={(e) =>
-                            setEditingVariant(
-                              (ev) => ev && { ...ev, stock: e.target.value },
-                            )
-                          }
-                          className="h-8 text-sm bg-input/50"
-                          placeholder="Stock"
-                          min={0}
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          className="h-7 text-xs"
-                          disabled={editPending}
-                          onClick={() =>
-                            void onEditVariant({
-                              variantId: v.id,
-                              variantName: editingVariant.name,
-                              stockCount: BigInt(editingVariant.stock || "0"),
-                              price: BigInt(
-                                Math.round(
-                                  Number.parseFloat(
-                                    editingVariant.price || "0",
-                                  ) * 100,
-                                ),
-                              ),
-                            }).then(() => setEditingVariant(null))
-                          }
-                          style={{
-                            background: "oklch(0.78 0.18 75)",
-                            color: "oklch(0.08 0.01 50)",
-                          }}
-                        >
-                          {editPending ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            "Save"
-                          )}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs"
-                          onClick={() => setEditingVariant(null)}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      key={v.id.toString()}
-                      className="glass-card rounded-lg p-3 flex items-center justify-between gap-2"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {v.variantName}
-                        </p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-xs text-muted-foreground">
-                            Stock: {v.stockCount.toString()}
-                          </span>
-                          {v.price > 0n ? (
-                            <span
-                              className="text-xs font-semibold"
-                              style={{ color: "oklch(0.72 0.18 155)" }}
-                            >
-                              ₹{(Number(v.price) / 100).toLocaleString("en-IN")}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground/60 italic">
-                              ₹ Base
-                            </span>
-                          )}
-                          <ProductStateBadge
-                            state={v.state}
-                            stockCount={v.stockCount}
-                            className="text-[10px] py-0 h-4"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {/* Reset to Available — only shown for locked or sold variants */}
-                        {v.state !== "available" && (
-                          <button
-                            type="button"
-                            title="Reset to Available"
-                            onClick={() => void resetVariant.mutate(v.id)}
-                            disabled={resetVariant.isPending}
-                            className="p-1.5 rounded hover:bg-accent/50 text-muted-foreground hover:text-emerald-400 transition-colors"
-                          >
-                            {resetVariant.isPending ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <RotateCcw className="h-3.5 w-3.5" />
-                            )}
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          title="Edit variant"
-                          onClick={() =>
-                            setEditingVariant({
-                              id: v.id,
-                              name: v.variantName,
-                              stock: v.stockCount.toString(),
-                              price:
-                                v.price > 0n
-                                  ? (Number(v.price) / 100).toString()
-                                  : "",
-                            })
-                          }
-                          className="p-1.5 rounded hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          <Edit className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ),
-                )}
-              </div>
-            )}
-          </ScrollArea>
-
-          {/* Add new variant */}
-          <div className="border-t border-border/50 pt-4">
-            <p className="text-xs font-medium text-muted-foreground mb-2">
-              Add New Variant
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              <Input
-                placeholder="e.g. Size M"
-                value={newVariant.name}
-                onChange={(e) =>
-                  setNewVariant((v) => ({ ...v, name: e.target.value }))
-                }
-                className="h-8 text-sm bg-input/50"
-              />
-              <div className="relative">
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">
-                  ₹
-                </span>
-                <Input
-                  type="number"
-                  placeholder="Price"
-                  value={newVariant.price}
-                  onChange={(e) =>
-                    setNewVariant((v) => ({ ...v, price: e.target.value }))
-                  }
-                  className="h-8 text-sm bg-input/50 pl-5"
-                  min={0}
-                />
-              </div>
-              <Input
-                type="number"
-                placeholder="Stock qty"
-                value={newVariant.stock}
-                onChange={(e) =>
-                  setNewVariant((v) => ({ ...v, stock: e.target.value }))
-                }
-                className="h-8 text-sm bg-input/50"
-                min={0}
-              />
+        <ScrollArea className="max-h-[50vh]">
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="skeleton h-14 rounded-xl" />
+              ))}
             </div>
-            <p className="text-[11px] text-muted-foreground/60 mt-1">
-              Leave price blank to use the product&apos;s base price.
+          ) : (variants ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              No variants yet
             </p>
+          ) : (
+            <div className="space-y-2">
+              {(variants ?? []).map((v, i) => (
+                <div
+                  key={v.id.toString()}
+                  className="flex items-center justify-between px-4 py-3 rounded-xl"
+                  style={{
+                    background: "oklch(0.16 0.016 45 / 0.6)",
+                    border: "1px solid oklch(0.22 0.018 45 / 0.5)",
+                  }}
+                  data-ocid={`catalog.row.${i + 1}`}
+                >
+                  <div>
+                    <p className="text-sm font-medium">{v.variantName}</p>
+                    <div className="flex items-center gap-3 mt-0.5">
+                      <span className="text-xs text-muted-foreground">
+                        Stock: {v.stockCount.toString()}
+                      </span>
+                      <span
+                        className="text-xs"
+                        style={{ color: "oklch(0.78 0.19 72)" }}
+                      >
+                        \u20b9
+                        {Math.round(Number(v.price) / 100).toLocaleString(
+                          "en-IN",
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ProductStateBadge
+                      state={v.state}
+                      stockCount={v.stockCount}
+                    />
+                    {(v.state === "locked" || v.state === "sold") && (
+                      <button
+                        type="button"
+                        onClick={() => handleReset(v.id)}
+                        disabled={resettingIds.has(v.id.toString())}
+                        className="h-7 w-7 rounded-lg flex items-center justify-center transition-colors hover:bg-accent"
+                        title="Reset to Available"
+                        data-ocid={`catalog.edit_button.${i + 1}`}
+                      >
+                        {resettingIds.has(v.id.toString()) ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <RotateCcw
+                            className="h-3.5 w-3.5"
+                            style={{ color: "oklch(0.72 0.18 155)" }}
+                          />
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
+
+        {/* Add variant row */}
+        <div
+          className="pt-4 border-t border-border/40 space-y-3"
+          data-ocid="catalog.panel"
+        >
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Add Variant
+          </p>
+          <div className="flex gap-2">
+            <Input
+              value={newVariantName}
+              onChange={(e) => setNewVariantName(e.target.value)}
+              placeholder="e.g. Size L"
+              className="bg-input/60 border-border/50 h-9 text-sm flex-1"
+              data-ocid="catalog.input"
+            />
+            <Input
+              value={newVariantStock}
+              onChange={(e) => setNewVariantStock(e.target.value)}
+              placeholder="Stock"
+              type="number"
+              min="0"
+              className="bg-input/60 border-border/50 h-9 text-sm w-20"
+            />
+            <Input
+              value={newVariantPrice}
+              onChange={(e) => setNewVariantPrice(e.target.value)}
+              placeholder="Price"
+              type="number"
+              min="0"
+              className="bg-input/60 border-border/50 h-9 text-sm w-24"
+            />
             <Button
               size="sm"
-              className="mt-2 w-full h-8 text-xs gap-1.5"
-              disabled={!newVariant.name || addPending}
-              onClick={() =>
-                void onAddVariant({
-                  variantName: newVariant.name,
-                  stockCount: BigInt(newVariant.stock || "0"),
-                  price: BigInt(
-                    Math.round(
-                      Number.parseFloat(newVariant.price || "0") * 100,
-                    ),
-                  ),
-                }).then(() => setNewVariant({ name: "", stock: "", price: "" }))
-              }
-              style={{
-                background: "oklch(0.78 0.18 75)",
-                color: "oklch(0.08 0.01 50)",
-              }}
+              className="h-9 gap-1 btn-amber shrink-0"
+              onClick={handleAddVariant}
+              disabled={!newVariantName.trim() || isAdding}
+              data-ocid="catalog.submit_button"
             >
-              {addPending ? (
+              {isAdding ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <Plus className="h-3.5 w-3.5" />
               )}
-              Add Variant
             </Button>
           </div>
         </div>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={onClose}
+            data-ocid="catalog.close_button"
+          >
+            Done
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-function Field({
-  label,
-  children,
-}: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <Label className="text-sm font-medium mb-1.5 block">{label}</Label>
-      {children}
-    </div>
-  );
-}
-
 function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
-    <div className="glass-card rounded-2xl p-16 text-center">
+    <div
+      className="glass-card rounded-2xl p-12 text-center"
+      data-ocid="catalog.empty_state"
+    >
       <div
-        className="inline-flex items-center justify-center h-16 w-16 rounded-2xl mb-4"
-        style={{ background: "oklch(0.78 0.18 75 / 0.1)" }}
-      >
-        <Package className="h-8 w-8" style={{ color: "oklch(0.78 0.18 75)" }} />
-      </div>
-      <p className="font-semibold text-foreground mb-1">No products yet</p>
-      <p className="text-sm text-muted-foreground mb-4">
-        Start building your catalog
-      </p>
-      <Button
-        size="sm"
-        onClick={onAdd}
+        className="h-16 w-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
         style={{
-          background: "oklch(0.78 0.18 75)",
-          color: "oklch(0.08 0.01 50)",
+          background: "oklch(0.78 0.19 72 / 0.1)",
+          color: "oklch(0.78 0.19 72)",
         }}
       >
-        <Plus className="h-4 w-4 mr-1.5" />
+        <Package className="h-8 w-8" />
+      </div>
+      <h3 className="font-display font-bold text-lg mb-2">No products yet</h3>
+      <p className="text-muted-foreground text-sm mb-5">
+        Add your first product to start managing inventory
+      </p>
+      <Button
+        className="gap-1.5 btn-amber"
+        onClick={onAdd}
+        data-ocid="catalog.primary_button"
+      >
+        <Plus className="h-4 w-4" />
         Add First Product
       </Button>
     </div>

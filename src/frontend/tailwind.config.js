@@ -16,9 +16,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['"Satoshi"', '"Cabinet Grotesk"', "sans-serif"],
-        display: ['"Cabinet Grotesk"', "sans-serif"],
-        mono: ['"Geist Mono"', "monospace"],
+        sans: ['"Plus Jakarta Sans"', "sans-serif"],
+        display: ['"Bricolage Grotesque"', '"Plus Jakarta Sans"', "sans-serif"],
+        mono: ['"JetBrains Mono"', '"Geist Mono"', "monospace"],
       },
       colors: {
         border: "oklch(var(--border))",
@@ -85,11 +85,6 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
-      boxShadow: {
-        xs: "0 1px 2px 0 rgba(0,0,0,0.05)",
-        glass: "0 4px 24px oklch(0.05 0.01 264 / 0.4), 0 1px 0 0 oklch(0.9 0.02 264 / 0.04) inset",
-        glow: "0 0 20px oklch(0.72 0.14 195 / 0.3)",
-      },
       keyframes: {
         "accordion-down": {
           from: { height: "0" },
@@ -103,6 +98,13 @@ export default {
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+      },
+      boxShadow: {
+        "glow-sm": "0 0 10px oklch(0.78 0.19 72 / 0.25)",
+        "glow-md": "0 0 20px oklch(0.78 0.19 72 / 0.35)",
+        "glow-lg": "0 0 40px oklch(0.78 0.19 72 / 0.4)",
+        "card": "0 1px 2px oklch(0 0 0 / 0.15), 0 4px 16px oklch(0 0 0 / 0.2)",
+        "card-lg": "0 2px 4px oklch(0 0 0 / 0.15), 0 8px 32px oklch(0 0 0 / 0.3)",
       },
     },
   },

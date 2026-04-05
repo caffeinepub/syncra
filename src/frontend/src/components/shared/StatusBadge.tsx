@@ -9,7 +9,6 @@ import {
 
 interface ProductStateBadgeProps {
   state: ProductState;
-  /** Pass stockCount so we never show "Sold" when stock is still > 0 */
   stockCount?: bigint | number;
   className?: string;
 }
@@ -19,17 +18,15 @@ export function ProductStateBadge({
   stockCount,
   className,
 }: ProductStateBadgeProps) {
-  // Correct the effective state: if backend says "sold" but stock remains, treat as available
   const hasStock =
     stockCount !== undefined && stockCount !== null
       ? BigInt(stockCount) > BigInt(0)
-      : true; // unknown stock — trust backend state
+      : true;
 
   let effectiveState = state;
   if (state === ProductState.sold && hasStock) {
     effectiveState = ProductState.available;
   }
-  // Also: if state is "available" but stock is 0, treat as sold
   if (
     state === ProductState.available &&
     stockCount !== undefined &&
@@ -42,17 +39,17 @@ export function ProductStateBadge({
   const config = {
     [ProductState.available]: {
       label: "Available",
-      className: "bg-success/15 text-success border-success/20",
+      className: "bg-success/12 text-success border-success/20",
       dotColor: "oklch(0.72 0.18 155)",
     },
     [ProductState.locked]: {
       label: "Locked",
-      className: "bg-warning/15 text-warning border-warning/20",
-      dotColor: "oklch(0.78 0.18 75)",
+      className: "bg-warning/12 text-warning border-warning/20",
+      dotColor: "oklch(0.78 0.19 72)",
     },
     [ProductState.sold]: {
       label: "Sold Out",
-      className: "bg-destructive/15 text-destructive border-destructive/20",
+      className: "bg-destructive/12 text-destructive border-destructive/20",
       dotColor: "oklch(0.55 0.22 25)",
     },
   };
@@ -80,18 +77,18 @@ export function BillStatusBadge({ status, className }: BillStatusBadgeProps) {
   const config = {
     [BillStatus.pending]: {
       label: "Pending",
-      className: "bg-warning/15 text-warning border-warning/20",
-      dotColor: "oklch(0.78 0.18 75)",
+      className: "bg-warning/12 text-warning border-warning/20",
+      dotColor: "oklch(0.78 0.19 72)",
     },
     [BillStatus.finalized]: {
       label: "Finalized",
-      className: "bg-success/15 text-success border-success/20",
+      className: "bg-success/12 text-success border-success/20",
       dotColor: "oklch(0.72 0.18 155)",
     },
     [BillStatus.cancelled]: {
       label: "Cancelled",
       className: "bg-muted/50 text-muted-foreground border-border",
-      dotColor: "oklch(0.55 0.22 25)",
+      dotColor: "oklch(0.45 0.014 72)",
     },
   };
   const { label, className: statusClass, dotColor } = config[status];
@@ -117,11 +114,11 @@ export function InviteStatusBadge({ status }: InviteStatusBadgeProps) {
   const config = {
     [InviteStatus.pending]: {
       label: "Pending",
-      className: "bg-warning/15 text-warning border-warning/20",
+      className: "bg-warning/12 text-warning border-warning/20",
     },
     [InviteStatus.accepted]: {
-      label: "Accepted",
-      className: "bg-success/15 text-success border-success/20",
+      label: "Active",
+      className: "bg-success/12 text-success border-success/20",
     },
     [InviteStatus.revoked]: {
       label: "Revoked",
@@ -144,19 +141,19 @@ export function SubStatusBadge({ status }: SubStatusBadgeProps) {
   const config = {
     [SubscriptionStatus.trial]: {
       label: "Free Trial",
-      className: "bg-primary/15 text-primary border-primary/20",
+      className: "bg-primary/12 text-primary border-primary/20",
     },
     [SubscriptionStatus.active]: {
       label: "Active",
-      className: "bg-success/15 text-success border-success/20",
+      className: "bg-success/12 text-success border-success/20",
     },
     [SubscriptionStatus.grace]: {
       label: "Grace Period",
-      className: "bg-warning/15 text-warning border-warning/20",
+      className: "bg-warning/12 text-warning border-warning/20",
     },
     [SubscriptionStatus.expired]: {
       label: "Expired",
-      className: "bg-destructive/15 text-destructive border-destructive/20",
+      className: "bg-destructive/12 text-destructive border-destructive/20",
     },
   };
   const { label, className } = config[status];

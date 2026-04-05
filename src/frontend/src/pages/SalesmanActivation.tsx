@@ -60,7 +60,6 @@ export function SalesmanActivation() {
       toast.error("Please enter a valid 6-digit code");
       return;
     }
-    // Simulate OTP verification — accept any 6-digit code
     setStep(2);
     toast.success("Identity verified!");
   };
@@ -94,16 +93,15 @@ export function SalesmanActivation() {
     }
   };
 
-  // If not authenticated yet, prompt login first
   if (!identity) {
     return (
       <div className="mesh-bg min-h-screen flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-md">
-          <div className="flex items-center gap-4 mb-8">
+          <div className="flex items-center gap-3 mb-8">
             <button
               type="button"
               onClick={() => setView("splash")}
-              className="p-2 rounded-lg hover:bg-accent/50 transition-colors text-muted-foreground hover:text-foreground shrink-0"
+              className="p-2 rounded-xl hover:bg-accent/50 transition-colors text-muted-foreground hover:text-foreground shrink-0"
               aria-label="Back to home"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -112,7 +110,7 @@ export function SalesmanActivation() {
             <div className="h-4 w-px bg-border" />
             <p className="text-sm text-muted-foreground">Salesman Activation</p>
           </div>
-          <div className="glass-card rounded-2xl p-8 text-center space-y-5">
+          <div className="glass-card rounded-3xl p-8 text-center space-y-6">
             <div
               className="h-14 w-14 rounded-2xl flex items-center justify-center mx-auto"
               style={{
@@ -122,8 +120,8 @@ export function SalesmanActivation() {
             >
               <LogIn className="h-7 w-7" />
             </div>
-            <div>
-              <h2 className="text-xl font-display font-bold mb-2">
+            <div className="space-y-2">
+              <h2 className="text-xl font-display font-bold">
                 Sign In Required
               </h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
@@ -134,12 +132,7 @@ export function SalesmanActivation() {
             </div>
             <Button
               size="lg"
-              className="w-full gap-2"
-              style={{
-                background:
-                  "linear-gradient(135deg, oklch(0.78 0.18 75), oklch(0.65 0.18 75))",
-                color: "oklch(0.08 0.01 50)",
-              }}
+              className="w-full gap-2 btn-amber rounded-2xl h-12"
               onClick={login}
               disabled={isLoggingIn}
             >
@@ -156,7 +149,6 @@ export function SalesmanActivation() {
     );
   }
 
-  // Actor still initializing for this identity — wait
   if (actorFetching) {
     return (
       <div className="mesh-bg min-h-screen flex flex-col items-center justify-center p-6">
@@ -174,11 +166,12 @@ export function SalesmanActivation() {
   return (
     <div className="mesh-bg min-h-screen flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-md">
-        <div className="flex items-center gap-4 mb-8">
+        {/* Back + logo */}
+        <div className="flex items-center gap-3 mb-8">
           <button
             type="button"
             onClick={() => setView("splash")}
-            className="p-2 rounded-lg hover:bg-accent/50 transition-colors text-muted-foreground hover:text-foreground shrink-0"
+            className="p-2 rounded-xl hover:bg-accent/50 transition-colors text-muted-foreground hover:text-foreground shrink-0"
             aria-label="Back to home"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -188,48 +181,60 @@ export function SalesmanActivation() {
           <p className="text-sm text-muted-foreground">Salesman Activation</p>
         </div>
 
-        {/* Progress */}
-        <div className="flex items-center gap-2 mb-8">
+        {/* Step progress */}
+        <div className="flex items-center mb-8">
           {[
-            { label: "Contact", icon: <MessageSquare className="h-3 w-3" /> },
-            { label: "Verify", icon: <Shield className="h-3 w-3" /> },
-            { label: "Profile", icon: <User className="h-3 w-3" /> },
+            {
+              label: "Contact",
+              icon: <MessageSquare className="h-3.5 w-3.5" />,
+            },
+            { label: "Verify", icon: <Shield className="h-3.5 w-3.5" /> },
+            { label: "Profile", icon: <User className="h-3.5 w-3.5" /> },
           ].map((s, i) => (
-            <div key={s.label} className="flex items-center gap-2 flex-1">
-              <div
-                className={`flex items-center justify-center h-7 w-7 rounded-full text-xs font-bold transition-all duration-300 shrink-0 ${
-                  i < step
-                    ? "bg-success text-success-foreground"
-                    : i === step
-                      ? "text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
-                }`}
-                style={
-                  i === step
-                    ? {
-                        background: "oklch(0.78 0.18 75)",
-                        color: "oklch(0.08 0.01 50)",
-                      }
-                    : {}
-                }
-              >
-                {i < step ? <Check className="h-3 w-3" /> : s.icon}
+            <div
+              key={s.label}
+              className="flex items-center flex-1 last:flex-none"
+            >
+              <div className="flex flex-col items-center gap-1.5">
+                <div
+                  className={`flex items-center justify-center h-8 w-8 rounded-full text-xs font-bold transition-all duration-300 shrink-0 ${
+                    i < step
+                      ? "bg-success text-success-foreground"
+                      : i === step
+                        ? "text-primary-foreground"
+                        : "bg-muted text-muted-foreground"
+                  }`}
+                  style={
+                    i === step
+                      ? {
+                          background: "oklch(0.78 0.18 75)",
+                          color: "oklch(0.08 0.01 50)",
+                        }
+                      : {}
+                  }
+                >
+                  {i < step ? <Check className="h-3.5 w-3.5" /> : s.icon}
+                </div>
+                <span
+                  className={`text-[11px] font-medium ${
+                    i === step ? "text-foreground" : "text-muted-foreground"
+                  }`}
+                >
+                  {s.label}
+                </span>
               </div>
-              <span
-                className={`text-xs font-medium ${i === step ? "text-foreground" : "text-muted-foreground"}`}
-              >
-                {s.label}
-              </span>
               {i < 2 && (
                 <div
-                  className={`h-px flex-1 mx-1 ${i < step ? "bg-success/40" : "bg-border"}`}
+                  className={`h-px flex-1 mx-3 mt-[-12px] ${
+                    i < step ? "bg-success/40" : "bg-border"
+                  }`}
                 />
               )}
             </div>
           ))}
         </div>
 
-        <div className="glass-card rounded-2xl p-6">
+        <div className="glass-card rounded-3xl p-6">
           <AnimatePresence mode="wait">
             {step === 0 && (
               <StepWrapper key="step0">
@@ -243,7 +248,7 @@ export function SalesmanActivation() {
                   <div>
                     <Label
                       htmlFor="contact"
-                      className="text-sm font-medium mb-1.5 block"
+                      className="text-sm font-medium mb-2 block"
                     >
                       Email or Phone Number
                     </Label>
@@ -252,13 +257,19 @@ export function SalesmanActivation() {
                       value={contactInfo}
                       onChange={(e) => setContactInfo(e.target.value)}
                       placeholder="john@example.com or +91 98765 43210"
-                      className="bg-input/50 border-border/50"
+                      className="h-11 bg-input/50 border-border/50"
                     />
                   </div>
-                  <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 text-xs text-muted-foreground">
-                    🔍 Your invite is being verified against registered
-                    businesses. This connects your account to your employer
-                    automatically.
+                  <div
+                    className="p-3 rounded-xl text-xs text-muted-foreground"
+                    style={{
+                      background: "oklch(0.78 0.19 72 / 0.07)",
+                      border: "1px solid oklch(0.78 0.19 72 / 0.15)",
+                    }}
+                  >
+                    \ud83d\udd0d Your invite is being verified against
+                    registered businesses. This connects your account to your
+                    employer automatically.
                   </div>
                 </div>
                 <div className="mt-6 flex justify-end">
@@ -266,11 +277,7 @@ export function SalesmanActivation() {
                     onClick={handleSendOtp}
                     disabled={!contactInfo.trim() || isSubmitting}
                     size="sm"
-                    className="gap-1.5"
-                    style={{
-                      background: "oklch(0.78 0.18 75)",
-                      color: "oklch(0.08 0.01 50)",
-                    }}
+                    className="h-10 px-5 gap-1.5 btn-amber"
                   >
                     {isSubmitting ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -296,7 +303,7 @@ export function SalesmanActivation() {
                   <div>
                     <Label
                       htmlFor="otp"
-                      className="text-sm font-medium mb-1.5 block"
+                      className="text-sm font-medium mb-2 block"
                     >
                       6-digit PIN
                     </Label>
@@ -319,7 +326,7 @@ export function SalesmanActivation() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="gap-1.5"
+                    className="gap-1.5 h-10"
                     onClick={() => setStep(0)}
                   >
                     <ChevronLeft className="h-4 w-4" />
@@ -329,11 +336,7 @@ export function SalesmanActivation() {
                     onClick={handleVerifyOtp}
                     disabled={otp.length !== 6}
                     size="sm"
-                    className="gap-1.5"
-                    style={{
-                      background: "oklch(0.78 0.18 75)",
-                      color: "oklch(0.08 0.01 50)",
-                    }}
+                    className="h-10 px-5 gap-1.5 btn-amber"
                   >
                     Set PIN & Continue
                     <ChevronRight className="h-4 w-4" />
@@ -354,7 +357,7 @@ export function SalesmanActivation() {
                   <div>
                     <Label
                       htmlFor="sname"
-                      className="text-sm font-medium mb-1.5 block"
+                      className="text-sm font-medium mb-2 block"
                     >
                       Your Name
                     </Label>
@@ -363,7 +366,7 @@ export function SalesmanActivation() {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Enter your full name"
-                      className="bg-input/50 border-border/50"
+                      className="h-11 bg-input/50 border-border/50"
                     />
                   </div>
                 </div>
@@ -371,7 +374,7 @@ export function SalesmanActivation() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="gap-1.5"
+                    className="gap-1.5 h-10"
                     onClick={() => setStep(1)}
                     disabled={isSubmitting}
                   >
@@ -382,7 +385,7 @@ export function SalesmanActivation() {
                     onClick={handleActivate}
                     disabled={!name.trim() || isSubmitting}
                     size="sm"
-                    className="gap-1.5"
+                    className="h-10 px-5 gap-1.5"
                     style={{
                       background: "oklch(0.72 0.18 155)",
                       color: "oklch(0.08 0.01 50)",

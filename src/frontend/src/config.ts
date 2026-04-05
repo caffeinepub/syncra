@@ -33,41 +33,24 @@ export async function loadConfig(): Promise<Config> {
   if (configCache) {
     return configCache;
   }
-
-  // Vite exposes env vars via import.meta.env, not process.env
-  const backendCanisterId =
-    (import.meta.env.VITE_CANISTER_ID_BACKEND as string | undefined) ??
-    (import.meta.env.CANISTER_ID_BACKEND as string | undefined);
-
-  const envBaseUrl =
-    (import.meta.env.VITE_BASE_URL as string | undefined) ??
-    (import.meta.env.BASE_URL as string | undefined) ??
-    "/";
+  const backendCanisterId = process.env.CANISTER_ID_BACKEND;
+  const envBaseUrl = process.env.BASE_URL || "/";
   const baseUrl = envBaseUrl.endsWith("/") ? envBaseUrl : `${envBaseUrl}/`;
-
   try {
     const response = await fetch(`${baseUrl}env.json`);
     const config = (await response.json()) as JsonConfig;
-
     if (!backendCanisterId && config.backend_canister_id === "undefined") {
       console.error("CANISTER_ID_BACKEND is not set");
       throw new Error("CANISTER_ID_BACKEND is not set");
     }
 
-    // storage_gateway_url: prefer Vite env, then fall back to the caffeine gateway
-    const storageGatewayUrl =
-      (import.meta.env.VITE_STORAGE_GATEWAY_URL as string | undefined) ??
-      DEFAULT_STORAGE_GATEWAY_URL;
-
-    const fullConfig: Config = {
+    const fullConfig = {
       backend_host:
         config.backend_host === "undefined" ? undefined : config.backend_host,
-      backend_canister_id: (
-        config.backend_canister_id === "undefined"
-          ? backendCanisterId
-          : config.backend_canister_id
-      ) as string,
-      storage_gateway_url: storageGatewayUrl,
+      backend_canister_id: (config.backend_canister_id === "undefined"
+        ? backendCanisterId
+        : config.backend_canister_id) as string,
+      storage_gateway_url: process.env.STORAGE_GATEWAY_URL ?? "nogateway",
       bucket_name: DEFAULT_BUCKET_NAME,
       project_id:
         config.project_id !== "undefined"
@@ -85,7 +68,7 @@ export async function loadConfig(): Promise<Config> {
       console.error("CANISTER_ID_BACKEND is not set");
       throw new Error("CANISTER_ID_BACKEND is not set");
     }
-    const fallbackConfig: Config = {
+    const fallbackConfig = {
       backend_host: undefined,
       backend_canister_id: backendCanisterId,
       storage_gateway_url: DEFAULT_STORAGE_GATEWAY_URL,
@@ -93,7 +76,6 @@ export async function loadConfig(): Promise<Config> {
       project_id: DEFAULT_PROJECT_ID,
       ii_derivation_origin: undefined,
     };
-    configCache = fallbackConfig;
     return fallbackConfig;
   }
 }
@@ -117,10 +99,17 @@ async function maybeLoadMockBackend(): Promise<backendInterface | null> {
   }
 
   try {
+    // If VITE_USE_MOCK is enabled, try to load a mock backend module *if it exists*.
+    // We use import.meta.glob so builds don't fail when the mock file is absent.
     const mockModules = import.meta.glob("./mocks/backend.{ts,tsx,js,jsx}");
+
     const path = Object.keys(mockModules)[0];
     if (!path) return null;
-    const mod = (await mockModules[path]()) as { mockBackend?: backendInterface };
+
+    const mod = (await mockModules[path]()) as {
+      mockBackend?: backendInterface;
+    };
+
     return mod.mockBackend ?? null;
   } catch {
     return null;
@@ -130,8 +119,11 @@ async function maybeLoadMockBackend(): Promise<backendInterface | null> {
 export async function createActorWithConfig(
   options?: CreateActorOptions,
 ): Promise<backendInterface> {
+  // Attempt to load mock backend if enabled
   const mock = await maybeLoadMockBackend();
-  if (mock) return mock;
+  if (mock) {
+    return mock;
+  }
 
   const config = await loadConfig();
   const resolvedOptions = options ?? {};
@@ -139,17 +131,17 @@ export async function createActorWithConfig(
     ...resolvedOptions.agentOptions,
     host: config.backend_host,
   });
-
   if (config.backend_host?.includes("localhost")) {
     await agent.fetchRootKey().catch((err) => {
-      console.warn("Unable to fetch root key. Check that your local replica is running.");
+      console.warn(
+        "Unable to fetch root key. Check to ensure that your local replica is running",
+      );
       console.error(err);
     });
   }
-
   const actorOptions = {
     ...resolvedOptions,
-    agent,
+    agent: agent,
     processError,
   };
 

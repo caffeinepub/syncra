@@ -136,6 +136,7 @@ export interface backendInterface {
     getAllProductVariants(): Promise<Array<ProductVariant>>;
     getAllProducts(): Promise<Array<Product>>;
     getBillsForBusiness(businessId: bigint): Promise<Array<BillToken>>;
+    getBillsForSalesman(salesmanId: bigint, businessId: bigint): Promise<Array<BillToken>>;
     getBusiness(businessId: bigint): Promise<Business>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
@@ -143,6 +144,8 @@ export interface backendInterface {
     getPendingBills(businessId: bigint): Promise<Array<BillToken>>;
     getProductsForBusiness(businessId: bigint): Promise<Array<Product>>;
     getSalesmanActivityLogs(salesmanUserId: bigint): Promise<Array<SalesmanActivityLog>>;
+    getSalesmanBills(businessId: bigint): Promise<Array<BillToken>>;
+    getStaffForBusiness(businessId: bigint): Promise<Array<UserProfile>>;
     getTimeDiff(time1: Time, time2: Time): Promise<bigint>;
     getTotalBillsCount(businessId: bigint): Promise<bigint>;
     getTotalSales(businessId: bigint): Promise<bigint>;
@@ -155,6 +158,7 @@ export interface backendInterface {
     lookupInvite(contactInfo: string): Promise<SalesmanInvite | null>;
     registerBusiness(name: string, businessType: BusinessType, subscriptionStatus: SubscriptionStatus, trialStartDate: bigint, trialEndDate: bigint): Promise<bigint>;
     releaseVariantLock(variantId: bigint): Promise<void>;
+    resetVariantState(variantId: bigint): Promise<void>;
     revokeInvite(inviteId: bigint): Promise<void>;
     saveCallerUserProfile(name: string, email: string, phone: string, businessId: bigint, role: Role, isActive: boolean): Promise<void>;
     updateSubscription(businessId: bigint, newStatus: SubscriptionStatus): Promise<void>;

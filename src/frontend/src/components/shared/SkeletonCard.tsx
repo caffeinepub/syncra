@@ -23,10 +23,10 @@ export function SkeletonCard({ className, lines = 3 }: Props) {
 export function SkeletonGrid({ count = 6 }: { count?: number }) {
   const items = Array.from({ length: count }, (_, i) => i);
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
       {items.map((i) => (
-        <div key={i} className="glass-card rounded-xl overflow-hidden">
-          <div className="skeleton aspect-square w-full" />
+        <div key={i} className="glass-card rounded-2xl overflow-hidden">
+          <div className="skeleton aspect-[4/3] w-full" />
           <div className="p-3 space-y-2">
             <div className="skeleton h-3.5 w-3/4 rounded" />
             <div className="skeleton h-3 w-1/2 rounded" />
@@ -39,8 +39,8 @@ export function SkeletonGrid({ count = 6 }: { count?: number }) {
 
 export function SkeletonRow() {
   return (
-    <div className="flex items-center gap-4 p-4 border-b border-border/50">
-      <div className="skeleton h-10 w-10 rounded-full shrink-0" />
+    <div className="flex items-center gap-4 px-4 py-3 glass-card rounded-xl">
+      <div className="skeleton h-9 w-9 rounded-xl shrink-0" />
       <div className="flex-1 space-y-2">
         <div className="skeleton h-3.5 w-1/3 rounded" />
         <div className="skeleton h-3 w-1/2 rounded" />

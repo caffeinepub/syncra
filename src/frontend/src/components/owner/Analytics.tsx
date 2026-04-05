@@ -25,6 +25,59 @@ import {
 import { SkeletonCard, SkeletonRow } from "../shared/SkeletonCard";
 import { BillStatusBadge } from "../shared/StatusBadge";
 
+type Period = "today" | "month" | "year";
+
+function buildChartData(bills: BillToken[], period: Period) {
+  const finalized = bills.filter((b) => b.status === BillStatus.finalized);
+  if (period === "today") {
+    const hours: Record<number, number> = {};
+    for (const b of finalized) {
+      const h = new Date(Number(b.createdAt) / 1_000_000).getHours();
+      hours[h] = (hours[h] ?? 0) + Math.round(Number(b.totalAmount) / 100);
+    }
+    return Array.from({ length: 24 }, (_, h) => ({
+      label: `${h}:00`,
+      value: hours[h] ?? 0,
+    })).filter((d) => d.value > 0);
+  }
+  if (period === "month") {
+    const days: Record<number, number> = {};
+    for (const b of finalized) {
+      const d = new Date(Number(b.createdAt) / 1_000_000).getDate();
+      days[d] = (days[d] ?? 0) + Math.round(Number(b.totalAmount) / 100);
+    }
+    return Object.entries(days)
+      .map(([d, v]) => ({ label: `Day ${d}`, value: v }))
+      .sort(
+        (a, b) => Number(a.label.split(" ")[1]) - Number(b.label.split(" ")[1]),
+      );
+  }
+  const months: Record<number, number> = {};
+  for (const b of finalized) {
+    const m = new Date(Number(b.createdAt) / 1_000_000).getMonth();
+    months[m] = (months[m] ?? 0) + Math.round(Number(b.totalAmount) / 100);
+  }
+  const MONTH_LABELS = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+  return Object.entries(months)
+    .map(([m, v]) => ({ label: MONTH_LABELS[Number(m)], value: v }))
+    .sort(
+      (a, b) => MONTH_LABELS.indexOf(a.label) - MONTH_LABELS.indexOf(b.label),
+    );
+}
+
 export function Analytics() {
   const { business } = useAppContext();
   const { data: totalSales, isLoading: salesLoading } = useTotalSales(
@@ -38,11 +91,10 @@ export function Analytics() {
   );
   const { data: logs, isLoading: logsLoading } = useActivityLogs(business?.id);
 
-  const [filter, setFilter] = useState<"today" | "month" | "year">("today");
+  const [filter, setFilter] = useState<Period>("today");
 
   const filteredBills = (bills ?? []).filter((b) => {
-    const ts = Number(b.createdAt) / 1_000_000;
-    const d = new Date(ts);
+    const d = new Date(Number(b.createdAt) / 1_000_000);
     if (filter === "today") return isToday(d);
     if (filter === "month") return isThisMonth(d);
     return isThisYear(d);
@@ -55,29 +107,59 @@ export function Analytics() {
   const finalizedBillsCount = filteredBills.filter(
     (b) => b.status === BillStatus.finalized,
   ).length;
-
-  // Build chart data grouped by day/month
   const chartData = buildChartData(filteredBills, filter);
 
-  // Filter activity logs by same period
   const filteredLogs = (logs ?? []).filter((log) => {
-    const ts = Number(log.timestamp) / 1_000_000;
-    const d = new Date(ts);
+    const d = new Date(Number(log.timestamp) / 1_000_000);
     if (filter === "today") return isToday(d);
     if (filter === "month") return isThisMonth(d);
     return isThisYear(d);
   });
 
+  const PERIOD_LABELS: Record<Period, string> = {
+    today: "Today",
+    month: "This Month",
+    year: "This Year",
+  };
+
   return (
     <div className="space-y-6">
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      {/* Period filter */}
+      <div className="flex items-center gap-2">
+        {(["today", "month", "year"] as Period[]).map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => setFilter(p)}
+            className="px-4 py-2 rounded-xl text-sm font-medium transition-all"
+            style={{
+              background:
+                filter === p
+                  ? "oklch(0.78 0.19 72 / 0.15)"
+                  : "oklch(0.17 0.016 45 / 0.6)",
+              color:
+                filter === p ? "oklch(0.78 0.19 72)" : "oklch(0.52 0.016 75)",
+              border: `1px solid ${
+                filter === p
+                  ? "oklch(0.78 0.19 72 / 0.3)"
+                  : "oklch(0.22 0.018 45 / 0.5)"
+              }`,
+            }}
+            data-ocid={`analytics.${p}.tab`}
+          >
+            {PERIOD_LABELS[p]}
+          </button>
+        ))}
+      </div>
+
+      {/* Summary stat cards — 2 cols on mobile, 4 on sm+ */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Total Revenue"
           value={
             salesLoading
               ? null
-              : `₹${Math.round(Number(totalSales ?? BigInt(0)) / 100).toLocaleString("en-IN")}`
+              : `\u20b9${Math.round(Number(totalSales ?? BigInt(0)) / 100).toLocaleString("en-IN")}`
           }
           icon={<IndianRupee className="h-5 w-5" />}
           color="oklch(0.72 0.18 155)"
@@ -87,161 +169,116 @@ export function Analytics() {
           label="Total Bills"
           value={billsLoading ? null : (totalBills ?? BigInt(0)).toString()}
           icon={<Receipt className="h-5 w-5" />}
-          color="oklch(0.78 0.18 75)"
+          color="oklch(0.78 0.19 72)"
           sub="All time"
         />
         <StatCard
           label="Period Revenue"
-          value={`₹${Math.round(Number(filteredTotal) / 100).toLocaleString("en-IN")}`}
+          value={`\u20b9${Math.round(Number(filteredTotal) / 100).toLocaleString("en-IN")}`}
           icon={<TrendingUp className="h-5 w-5" />}
-          color="oklch(0.78 0.17 73)"
-          sub={
-            filter === "today"
-              ? "Today"
-              : filter === "month"
-                ? "This month"
-                : "This year"
-          }
+          color="oklch(0.78 0.17 68)"
+          sub={PERIOD_LABELS[filter]}
         />
         <StatCard
-          label="Finalized Bills"
+          label="Finalized"
           value={finalizedBillsCount.toString()}
           icon={<Clock className="h-5 w-5" />}
           color="oklch(0.62 0.18 280)"
-          sub={
-            filter === "today"
-              ? "Today"
-              : filter === "month"
-                ? "This month"
-                : "This year"
-          }
+          sub={PERIOD_LABELS[filter]}
         />
       </div>
 
-      {/* Revenue trend bar chart */}
+      {/* Revenue chart */}
       {chartData.length > 0 && (
-        <div className="glass-card rounded-2xl p-4 mt-2">
-          <p className="text-sm font-semibold mb-3">Revenue Trend</p>
-          <ResponsiveContainer width="100%" height={160}>
-            <BarChart
-              data={chartData}
-              margin={{ top: 0, right: 8, left: -20, bottom: 0 }}
-            >
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card rounded-2xl p-5"
+        >
+          <p className="text-sm font-semibold mb-4">
+            Revenue Trend — {PERIOD_LABELS[filter]}
+          </p>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={chartData} barSize={20}>
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: 11, fill: "oklch(0.55 0.018 75)" }}
+                tick={{ fontSize: 11, fill: "oklch(0.52 0.016 75)" }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fontSize: 10, fill: "oklch(0.55 0.018 75)" }}
+                tick={{ fontSize: 11, fill: "oklch(0.52 0.016 75)" }}
                 axisLine={false}
                 tickLine={false}
-                tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+                tickFormatter={(v) =>
+                  `\u20b9${v >= 1000 ? `${Math.round(v / 1000)}k` : v}`
+                }
               />
               <Tooltip
-                formatter={(value: number) => [
-                  `₹${Math.round(value).toLocaleString("en-IN")}`,
+                formatter={(v: number) => [
+                  `\u20b9${v.toLocaleString("en-IN")}`,
                   "Revenue",
                 ]}
                 contentStyle={{
-                  background: "oklch(0.14 0.018 50)",
-                  border: "1px solid oklch(0.28 0.02 50)",
-                  borderRadius: "8px",
-                  fontSize: "12px",
+                  background: "oklch(0.14 0.016 45)",
+                  border: "1px solid oklch(0.22 0.018 45)",
+                  borderRadius: "10px",
+                  color: "oklch(0.96 0.008 75)",
+                  fontSize: 12,
                 }}
-                labelStyle={{ color: "oklch(0.78 0.18 75)" }}
+                cursor={{ fill: "oklch(0.78 0.19 72 / 0.05)" }}
               />
               <Bar
-                dataKey="revenue"
-                fill="oklch(0.78 0.18 75)"
+                dataKey="value"
+                fill="oklch(0.78 0.19 72)"
                 radius={[4, 4, 0, 0]}
               />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </motion.div>
       )}
 
-      {/* Tabs for filter + lists */}
-      <Tabs defaultValue="bills" className="space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <TabsList className="bg-muted/50 h-8">
-            <TabsTrigger
-              value="bills"
-              className="text-xs h-6"
-              data-ocid="analytics.bills.tab"
-            >
-              Bill History
-            </TabsTrigger>
-            <TabsTrigger
-              value="activity"
-              className="text-xs h-6"
-              data-ocid="analytics.activity.tab"
-            >
-              Activity Log
-            </TabsTrigger>
-          </TabsList>
+      {/* Bills and Activity tabs */}
+      <Tabs defaultValue="bills">
+        <TabsList className="mb-4">
+          <TabsTrigger value="bills" data-ocid="analytics.bills.tab">
+            Bill History
+          </TabsTrigger>
+          <TabsTrigger value="activity" data-ocid="analytics.activity.tab">
+            Activity Log
+          </TabsTrigger>
+        </TabsList>
 
-          {/* Period filter */}
-          <div className="flex gap-1">
-            {(["today", "month", "year"] as const).map((f) => (
-              <button
-                type="button"
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                  filter === f
-                    ? "text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                }`}
-                style={
-                  filter === f
-                    ? {
-                        background: "oklch(0.78 0.18 75)",
-                        color: "oklch(0.08 0.01 50)",
-                      }
-                    : {}
-                }
-                data-ocid={`analytics.${f}.toggle`}
-              >
-                {f === "today" ? "Today" : f === "month" ? "Month" : "Year"}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* ─── Bill History Tab ─── */}
         <TabsContent value="bills">
           {billHistoryLoading ? (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {[1, 2, 3].map((i) => (
-                <SkeletonRow key={i} />
+                <SkeletonCard key={i} />
               ))}
             </div>
           ) : filteredBills.length === 0 ? (
             <EmptyState
-              label="No bills in this period"
+              label={`No bills for ${PERIOD_LABELS[filter].toLowerCase()}`}
               data-ocid="analytics.bills.empty_state"
             />
           ) : (
-            <ScrollArea className="h-[400px]">
-              <div className="space-y-2 pr-2">
-                {filteredBills.map((bill, i) => (
-                  <motion.div
-                    key={bill.id.toString()}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.03 }}
-                  >
-                    <BillHistoryRow bill={bill} index={i + 1} />
-                  </motion.div>
-                ))}
+            <ScrollArea className="max-h-96">
+              <div className="space-y-2.5 pr-1">
+                {filteredBills
+                  .slice()
+                  .sort((a, b) => Number(b.createdAt - a.createdAt))
+                  .map((bill, i) => (
+                    <BillRow
+                      key={bill.id.toString()}
+                      bill={bill}
+                      index={i + 1}
+                    />
+                  ))}
               </div>
             </ScrollArea>
           )}
         </TabsContent>
 
-        {/* ─── Activity Log Tab ─── */}
         <TabsContent value="activity">
           {logsLoading ? (
             <div className="space-y-2">
@@ -251,184 +288,23 @@ export function Analytics() {
             </div>
           ) : filteredLogs.length === 0 ? (
             <EmptyState
-              label="No activity logs in this period"
+              label={`No activity for ${PERIOD_LABELS[filter].toLowerCase()}`}
               data-ocid="analytics.activity.empty_state"
             />
           ) : (
-            <ScrollArea className="h-[400px]">
-              <div className="space-y-2 pr-2">
+            <ScrollArea className="max-h-96">
+              <div className="divide-y divide-border/40">
                 {filteredLogs
                   .slice()
-                  .reverse()
-                  .map((log, i) => (
-                    <motion.div
-                      key={log.logId.toString()}
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.02 }}
-                    >
-                      <ActivityLogRow log={log} index={i + 1} />
-                    </motion.div>
+                  .sort((a, b) => Number(b.timestamp - a.timestamp))
+                  .map((log) => (
+                    <ActivityRow key={log.timestamp.toString()} log={log} />
                   ))}
               </div>
             </ScrollArea>
           )}
         </TabsContent>
       </Tabs>
-    </div>
-  );
-}
-
-// ─── Chart data builder ────────────────────────────────────────────────
-
-function buildChartData(
-  bills: BillToken[],
-  filter: "today" | "month" | "year",
-): Array<{ label: string; revenue: number }> {
-  const finalizedBills = bills.filter((b) => b.status === BillStatus.finalized);
-  const buckets = new Map<string, number>();
-
-  for (const bill of finalizedBills) {
-    const ts = Number(bill.createdAt) / 1_000_000;
-    const d = new Date(ts);
-    let key: string;
-    if (filter === "today") {
-      key = format(d, "HH:00");
-    } else if (filter === "month") {
-      key = format(d, "MMM d");
-    } else {
-      key = format(d, "MMM");
-    }
-    const prev = buckets.get(key) ?? 0;
-    buckets.set(key, prev + Number(bill.totalAmount) / 100);
-  }
-
-  return Array.from(buckets.entries()).map(([label, revenue]) => ({
-    label,
-    revenue,
-  }));
-}
-
-// ─── Inner component: bill history row with salesman name ──────────────────
-
-function BillHistoryRow({
-  bill,
-  index,
-}: {
-  bill: BillToken;
-  index: number;
-}) {
-  const { data: salesman } = useGetUserById(bill.salesmanId);
-  const salesmanName = salesman?.name ?? "Unknown";
-  const initials = salesmanName
-    .split(" ")
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .slice(0, 2)
-    .join("");
-
-  return (
-    <div
-      className="glass-card rounded-xl p-3 flex items-center justify-between gap-4"
-      data-ocid={`analytics.bill.item.${index}`}
-    >
-      <div className="flex-1 min-w-0">
-        <p className="font-mono text-xs text-muted-foreground mb-1">
-          #{bill.id.toString().slice(-8).padStart(8, "0")}
-        </p>
-        <p className="text-sm font-bold">
-          ₹{Math.round(Number(bill.totalAmount) / 100).toLocaleString("en-IN")}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {format(new Date(Number(bill.createdAt) / 1_000_000), "MMM d, HH:mm")}
-        </p>
-
-        {/* Salesman attribution */}
-        <div className="flex items-center gap-1.5 mt-1.5">
-          <span
-            className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[9px] font-bold shrink-0"
-            style={{
-              background: "oklch(0.78 0.18 75 / 0.25)",
-              color: "oklch(0.78 0.18 75)",
-            }}
-          >
-            {initials}
-          </span>
-          <span
-            className="text-xs font-medium"
-            style={{ color: "oklch(0.78 0.18 75)" }}
-          >
-            {salesmanName}
-          </span>
-        </div>
-      </div>
-      <div className="flex flex-col items-end gap-1 shrink-0">
-        <BillStatusBadge status={bill.status} />
-        <p className="text-xs text-muted-foreground">
-          {bill.items.length} items
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// ─── Inner component: activity log row with salesman avatar + name ──────────
-
-function ActivityLogRow({
-  log,
-  index,
-}: {
-  log: SalesmanActivityLog;
-  index: number;
-}) {
-  const { data: salesman } = useGetUserById(log.salesmanId);
-  const salesmanName = salesman?.name ?? "Unknown salesman";
-  const initials = salesmanName
-    .split(" ")
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .slice(0, 2)
-    .join("");
-
-  return (
-    <div
-      className="glass-card rounded-xl p-3"
-      data-ocid={`analytics.activity.item.${index}`}
-    >
-      <div className="flex items-start gap-3">
-        {/* Avatar with initials */}
-        <div
-          className="flex-shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full text-xs font-bold"
-          style={{
-            background: "oklch(0.78 0.18 75 / 0.18)",
-            color: "oklch(0.78 0.18 75)",
-            border: "1px solid oklch(0.78 0.18 75 / 0.3)",
-          }}
-        >
-          {initials}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          {/* Salesman name label */}
-          <p
-            className="text-xs font-semibold mb-0.5"
-            style={{ color: "oklch(0.78 0.18 75)" }}
-          >
-            {salesmanName}
-          </p>
-          {/* Action */}
-          <p className="text-sm font-medium text-foreground">{log.action}</p>
-          {log.metadata && (
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {log.metadata}
-            </p>
-          )}
-        </div>
-
-        {/* Timestamp */}
-        <p className="text-xs text-muted-foreground shrink-0 pt-0.5">
-          {format(new Date(Number(log.timestamp) / 1_000_000), "HH:mm")}
-        </p>
-      </div>
     </div>
   );
 }
@@ -447,19 +323,95 @@ function StatCard({
   sub: string;
 }) {
   return (
-    <div className="stat-card rounded-xl p-4">
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-xs text-muted-foreground font-medium">{label}</p>
-        <div style={{ color }}>{icon}</div>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="glass-card rounded-2xl p-4"
+    >
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs text-muted-foreground font-medium leading-tight">
+          {label}
+        </p>
+        <div
+          className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0"
+          style={{ background: `${color.replace(")", " / 0.15)")}`, color }}
+        >
+          {icon}
+        </div>
       </div>
       {value === null ? (
         <div className="skeleton h-7 w-20 rounded mt-1" />
       ) : (
-        <p className="text-2xl font-display font-bold" style={{ color }}>
+        <p
+          className="text-2xl font-display font-bold truncate"
+          style={{ color }}
+        >
           {value}
         </p>
       )}
       <p className="text-xs text-muted-foreground mt-1">{sub}</p>
+    </motion.div>
+  );
+}
+
+function BillRow({ bill, index }: { bill: BillToken; index: number }) {
+  const ts = Number(bill.createdAt) / 1_000_000;
+  return (
+    <div
+      className="glass-card rounded-xl px-4 py-3 flex items-center justify-between gap-3"
+      data-ocid={`analytics.item.${index}`}
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <div
+          className="h-8 w-8 rounded-lg flex items-center justify-center font-bold text-xs shrink-0"
+          style={{
+            background: "oklch(0.78 0.19 72 / 0.12)",
+            color: "oklch(0.78 0.19 72)",
+          }}
+        >
+          #{index}
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium truncate">
+            Bill #{bill.id.toString().slice(-6)}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {format(new Date(ts), "MMM d, h:mm a")}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-3 shrink-0">
+        <p className="font-semibold text-sm">
+          \u20b9
+          {Math.round(Number(bill.totalAmount) / 100).toLocaleString("en-IN")}
+        </p>
+        <BillStatusBadge status={bill.status} />
+      </div>
+    </div>
+  );
+}
+
+function ActivityRow({ log }: { log: SalesmanActivityLog }) {
+  const ts = Number(log.timestamp) / 1_000_000;
+  const { data: user } = useGetUserById(log.salesmanId);
+  return (
+    <div className="flex items-center gap-3 py-3 px-1">
+      <div
+        className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+        style={{
+          background: "oklch(0.72 0.18 155 / 0.15)",
+          color: "oklch(0.72 0.18 155)",
+        }}
+      >
+        {user?.name ? user.name.slice(0, 2).toUpperCase() : "?"}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">{log.action}</p>
+        <p className="text-xs text-muted-foreground">
+          {user?.name ?? "Unknown"} \u2022{" "}
+          {format(new Date(ts), "MMM d, h:mm a")}
+        </p>
+      </div>
     </div>
   );
 }
@@ -467,15 +419,13 @@ function StatCard({
 function EmptyState({
   label,
   "data-ocid": dataOcid,
-}: {
-  label: string;
-  "data-ocid"?: string;
-}) {
+}: { label: string; "data-ocid"?: string }) {
   return (
     <div
-      className="glass-card rounded-xl p-10 text-center"
+      className="glass-card rounded-2xl p-10 text-center"
       data-ocid={dataOcid}
     >
+      <Receipt className="h-8 w-8 text-muted-foreground/40 mx-auto mb-3" />
       <p className="text-muted-foreground text-sm">{label}</p>
     </div>
   );

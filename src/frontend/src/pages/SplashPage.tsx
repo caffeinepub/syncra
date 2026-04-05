@@ -1,5 +1,11 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Building2, Loader2, UserCheck } from "lucide-react";
+import {
+  ArrowRight,
+  Building2,
+  ShieldCheck,
+  UserCheck,
+  Zap,
+} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { SyncraLogo } from "../components/shared/SyncraLogo";
@@ -9,6 +15,15 @@ import { useInternetIdentity } from "../hooks/useInternetIdentity";
 type RoleChoice = "owner" | "salesman" | null;
 
 const ROLE_STORAGE_KEY = "syncra_role";
+
+const FEATURES = [
+  { icon: <Zap className="h-4 w-4" />, text: "Real-time inventory sync" },
+  { icon: <ShieldCheck className="h-4 w-4" />, text: "Secure on-chain data" },
+  {
+    icon: <UserCheck className="h-4 w-4" />,
+    text: "Role-based access control",
+  },
+];
 
 export function SplashPage() {
   const { login, isLoggingIn, isInitializing, identity } =
@@ -20,7 +35,6 @@ export function SplashPage() {
     return null;
   });
 
-  // Hard 3-second timeout from mount — fires once, never resets on isInitializing flickers
   const [authTimedOut, setAuthTimedOut] = useState(false);
   const timerScheduledRef = useRef(false);
 
@@ -46,7 +60,6 @@ export function SplashPage() {
       login();
       return;
     }
-    // Profile might still be loading — don't route yet
     if (isLoadingProfile) return;
     if (userProfile) {
       if (userProfile.role === "owner") {
@@ -63,212 +76,291 @@ export function SplashPage() {
     }
   };
 
-  // Show spinner while: actively logging in, OR during the first 3s of auth init,
-  // OR identity is confirmed but profile data is still loading.
-  // Never block forever — authTimedOut breaks the cycle.
   const isLoading =
     isLoggingIn ||
     (!authTimedOut && isInitializing) ||
     (!!identity && isLoadingProfile);
 
-  // Only show "Continue" state when user has both an II session AND a Syncra profile
   const isReturningUser = !!(identity && userProfile);
 
   return (
-    <div className="mesh-bg min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      {/* Decorative amber blob — top right */}
+    <div className="mesh-bg min-h-screen flex flex-col items-center justify-center px-5 py-10 relative overflow-hidden">
+      {/* Decorative elements */}
       <div
-        className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-8 blur-3xl pointer-events-none"
+        className="absolute top-0 right-0 w-[500px] h-[500px] pointer-events-none"
         style={{
           background:
-            "radial-gradient(circle, oklch(0.78 0.18 75), transparent)",
+            "radial-gradient(circle at 70% 30%, oklch(0.78 0.19 72 / 0.12) 0%, transparent 65%)",
         }}
       />
-      {/* Decorative violet blob — bottom left */}
       <div
-        className="absolute bottom-0 left-0 w-64 h-64 rounded-full opacity-5 blur-3xl pointer-events-none"
+        className="absolute bottom-0 left-0 w-[400px] h-[400px] pointer-events-none"
         style={{
           background:
-            "radial-gradient(circle, oklch(0.62 0.18 280), transparent)",
+            "radial-gradient(circle at 30% 70%, oklch(0.62 0.18 280 / 0.1) 0%, transparent 60%)",
         }}
       />
-
-      {/* Subtle grid overlay */}
+      {/* Floating background grid dots */}
       <div
         className="absolute inset-0 pointer-events-none opacity-[0.025]"
         style={{
           backgroundImage:
-            "linear-gradient(oklch(0.78 0.18 75) 1px, transparent 1px), linear-gradient(90deg, oklch(0.78 0.18 75) 1px, transparent 1px)",
-          backgroundSize: "40px 40px",
+            "radial-gradient(circle, oklch(0.78 0.19 72) 1px, transparent 1px)",
+          backgroundSize: "32px 32px",
         }}
       />
 
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        className="w-full max-w-md relative z-10"
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className="w-full max-w-md relative z-10 flex flex-col gap-8"
       >
-        {/* Logo + tagline */}
-        <div className="text-center mb-12">
+        {/* Logo & brand */}
+        <div className="text-center">
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
+            initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.1 }}
+            transition={{ delay: 0.1, duration: 0.4 }}
             className="flex justify-center mb-6"
           >
-            <SyncraLogo size="lg" />
+            <div className="relative">
+              <div
+                className="absolute inset-0 blur-2xl"
+                style={{
+                  background:
+                    "radial-gradient(circle, oklch(0.78 0.19 72 / 0.3) 0%, transparent 70%)",
+                }}
+              />
+              <SyncraLogo size="lg" />
+            </div>
           </motion.div>
+          <motion.h1
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="font-display font-bold text-4xl tracking-tight mb-3"
+          >
+            Retail, Reimagined
+          </motion.h1>
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.25 }}
+            transition={{ delay: 0.3 }}
             className="text-muted-foreground text-base leading-relaxed"
           >
-            Retail management built for speed.
-            <br />
-            Real-time inventory. Instant insights.
+            Powerful inventory & billing for Indian retail businesses
           </motion.p>
         </div>
 
-        {/* Role selection */}
+        {/* Main card */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="mb-6"
+          transition={{ delay: 0.25, duration: 0.45 }}
+          className="glass-card rounded-3xl p-6"
         >
-          <p className="text-sm font-medium text-muted-foreground mb-3 text-center tracking-wide uppercase text-xs">
-            I am a...
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <RoleCard
-              icon={<Building2 className="h-6 w-6" />}
-              title="Business Owner"
-              description="Manage catalog, staff & analytics"
-              selected={selectedRole === "owner"}
-              onClick={() => handleRoleSelect("owner")}
-            />
-            <RoleCard
-              icon={<UserCheck className="h-6 w-6" />}
-              title="Salesman"
-              description="Browse catalog & generate bills"
-              selected={selectedRole === "salesman"}
-              onClick={() => handleRoleSelect("salesman")}
-            />
-          </div>
+          <AnimatePresence mode="wait">
+            {isLoading ? (
+              <motion.div
+                key="loading"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex flex-col items-center justify-center py-12 gap-4"
+                data-ocid="splash.loading_state"
+              >
+                <div className="h-10 w-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                <p className="text-muted-foreground text-sm">
+                  Connecting to Internet Identity…
+                </p>
+              </motion.div>
+            ) : isReturningUser ? (
+              <motion.div
+                key="returning"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="space-y-4"
+              >
+                <div
+                  className="flex items-center gap-4 p-4 rounded-2xl"
+                  style={{
+                    background: "oklch(0.78 0.19 72 / 0.08)",
+                    border: "1px solid oklch(0.78 0.19 72 / 0.15)",
+                  }}
+                >
+                  <div
+                    className="h-11 w-11 rounded-xl flex items-center justify-center shrink-0"
+                    style={{
+                      background: "oklch(0.78 0.19 72 / 0.15)",
+                      color: "oklch(0.78 0.19 72)",
+                    }}
+                  >
+                    {userProfile?.role === "owner" ? (
+                      <Building2 className="h-5 w-5" />
+                    ) : (
+                      <UserCheck className="h-5 w-5" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm">Welcome back</p>
+                    <p className="text-muted-foreground text-xs mt-0.5 truncate">
+                      {userProfile?.name ?? "User"} •{" "}
+                      {userProfile?.role === "owner" ? "Owner" : "Salesman"}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  className="w-full h-12 text-base font-semibold gap-2 rounded-2xl btn-amber"
+                  onClick={handleConnect}
+                  data-ocid="splash.primary_button"
+                >
+                  Continue to Dashboard
+                  <ArrowRight className="h-5 w-5" />
+                </Button>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="fresh"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="space-y-5"
+              >
+                <div>
+                  <p className="text-sm font-semibold mb-3 text-foreground/90">
+                    I am a…
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {(
+                      [
+                        {
+                          id: "owner" as RoleChoice,
+                          icon: <Building2 className="h-6 w-6" />,
+                          label: "Business Owner",
+                          desc: "Manage catalog, staff & analytics",
+                        },
+                        {
+                          id: "salesman" as RoleChoice,
+                          icon: <UserCheck className="h-6 w-6" />,
+                          label: "Salesman",
+                          desc: "Browse products & create bills",
+                        },
+                      ] as const
+                    ).map((role) => (
+                      <button
+                        key={role.id}
+                        type="button"
+                        onClick={() => handleRoleSelect(role.id)}
+                        data-ocid={`splash.${role.id}.button`}
+                        className="relative flex flex-col items-start gap-3 p-4 rounded-2xl transition-all duration-200 text-left"
+                        style={{
+                          background:
+                            selectedRole === role.id
+                              ? "oklch(0.78 0.19 72 / 0.12)"
+                              : "oklch(0.16 0.016 45 / 0.6)",
+                          border:
+                            selectedRole === role.id
+                              ? "1.5px solid oklch(0.78 0.19 72 / 0.45)"
+                              : "1.5px solid oklch(0.28 0.018 45 / 0.5)",
+                        }}
+                      >
+                        <div
+                          className="h-10 w-10 rounded-xl flex items-center justify-center"
+                          style={{
+                            background:
+                              selectedRole === role.id
+                                ? "oklch(0.78 0.19 72 / 0.18)"
+                                : "oklch(0.22 0.018 45 / 0.8)",
+                            color:
+                              selectedRole === role.id
+                                ? "oklch(0.78 0.19 72)"
+                                : "oklch(0.55 0.016 75)",
+                          }}
+                        >
+                          {role.icon}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-sm">{role.label}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {role.desc}
+                          </p>
+                        </div>
+                        {selectedRole === role.id && (
+                          <motion.div
+                            layoutId="role-check"
+                            className="absolute top-3 right-3 h-5 w-5 rounded-full flex items-center justify-center"
+                            style={{
+                              background: "oklch(0.78 0.19 72)",
+                              color: "oklch(0.08 0.01 45)",
+                            }}
+                          >
+                            <svg
+                              width="10"
+                              height="10"
+                              viewBox="0 0 10 10"
+                              fill="none"
+                              aria-hidden="true"
+                            >
+                              <path
+                                d="M2 5l2.5 2.5L8 2"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </motion.div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full h-12 text-base font-semibold gap-2 rounded-2xl btn-amber"
+                  onClick={handleConnect}
+                  disabled={!selectedRole}
+                  data-ocid="splash.primary_button"
+                >
+                  {identity ? "Continue" : "Connect with Internet Identity"}
+                  <ArrowRight className="h-5 w-5" />
+                </Button>
+
+                {selectedRole && !identity && (
+                  <p className="text-xs text-center text-muted-foreground">
+                    You'll be taken to Internet Identity to sign in securely
+                  </p>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
 
-        {/* Connect button */}
-        <AnimatePresence>
-          {selectedRole && (
-            <motion.div
-              initial={{ opacity: 0, y: 12, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.97 }}
-              transition={{ type: "spring", stiffness: 400, damping: 25 }}
-            >
-              <Button
-                size="lg"
-                className="w-full gap-2 h-12 text-base font-semibold glow-amber"
-                style={{
-                  background:
-                    "linear-gradient(135deg, oklch(0.78 0.18 75), oklch(0.65 0.18 75))",
-                  color: "oklch(0.08 0.01 50)",
-                }}
-                onClick={handleConnect}
-                disabled={isLoading}
-                data-ocid="splash.primary_button"
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ArrowRight className="h-4 w-4" />
-                )}
-                {isLoading
-                  ? "Connecting..."
-                  : isReturningUser
-                    ? "Continue →"
-                    : "Connect with Internet Identity"}
-              </Button>
-              <p className="text-center text-xs text-muted-foreground mt-3">
-                {isReturningUser
-                  ? "You're signed in — tap to continue"
-                  : "Secured by Internet Computer's decentralized identity"}
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Feature callouts */}
+        {/* Feature pills */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="mt-10 grid grid-cols-3 gap-4"
+          className="flex items-center justify-center gap-2 flex-wrap"
         >
-          {[
-            { label: "Real-time Sync", icon: "⚡" },
-            { label: "Offline Ready", icon: "📡" },
-            { label: "Role-Based", icon: "🔐" },
-          ].map((f) => (
-            <div key={f.label} className="text-center glass rounded-xl p-3">
-              <div className="text-xl mb-1">{f.icon}</div>
-              <p className="text-xs text-muted-foreground font-medium">
-                {f.label}
-              </p>
+          {FEATURES.map((f, i) => (
+            <div
+              // biome-ignore lint/suspicious/noArrayIndexKey: static feature list
+              key={i}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-muted-foreground"
+              style={{
+                background: "oklch(0.14 0.016 45 / 0.6)",
+                border: "1px solid oklch(0.22 0.018 45 / 0.5)",
+              }}
+            >
+              <span style={{ color: "oklch(0.78 0.19 72)" }}>{f.icon}</span>
+              {f.text}
             </div>
           ))}
         </motion.div>
       </motion.div>
     </div>
-  );
-}
-
-interface RoleCardProps {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  selected: boolean;
-  onClick: () => void;
-}
-
-function RoleCard({
-  icon,
-  title,
-  description,
-  selected,
-  onClick,
-}: RoleCardProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`relative text-left p-4 rounded-xl border transition-all duration-200 ${
-        selected
-          ? "border-primary/50 bg-primary/10 shadow-glow"
-          : "glass-card hover:border-border hover:bg-accent/30"
-      }`}
-      style={selected ? { borderColor: "oklch(0.78 0.18 75 / 0.5)" } : {}}
-    >
-      <div
-        className={`mb-3 transition-colors ${
-          selected ? "text-primary" : "text-muted-foreground"
-        }`}
-        style={selected ? { color: "oklch(0.78 0.18 75)" } : {}}
-      >
-        {icon}
-      </div>
-      <p className="font-semibold text-sm text-foreground mb-1">{title}</p>
-      <p className="text-xs text-muted-foreground leading-snug">
-        {description}
-      </p>
-      {selected && (
-        <div
-          className="absolute top-2.5 right-2.5 h-2 w-2 rounded-full animate-pulse-ring"
-          style={{ background: "oklch(0.72 0.18 155)" }}
-        />
-      )}
-    </button>
   );
 }

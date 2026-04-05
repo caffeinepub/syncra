@@ -176,6 +176,7 @@ export interface _SERVICE {
   'getAllProductVariants' : ActorMethod<[], Array<ProductVariant>>,
   'getAllProducts' : ActorMethod<[], Array<Product>>,
   'getBillsForBusiness' : ActorMethod<[bigint], Array<BillToken>>,
+  'getBillsForSalesman' : ActorMethod<[bigint, bigint], Array<BillToken>>,
   'getBusiness' : ActorMethod<[bigint], Business>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
@@ -183,6 +184,8 @@ export interface _SERVICE {
   'getPendingBills' : ActorMethod<[bigint], Array<BillToken>>,
   'getProductsForBusiness' : ActorMethod<[bigint], Array<Product>>,
   'getSalesmanActivityLogs' : ActorMethod<[bigint], Array<SalesmanActivityLog>>,
+  'getSalesmanBills' : ActorMethod<[bigint], Array<BillToken>>,
+  'getStaffForBusiness' : ActorMethod<[bigint], Array<UserProfile>>,
   'getTimeDiff' : ActorMethod<[Time, Time], bigint>,
   'getTotalBillsCount' : ActorMethod<[bigint], bigint>,
   'getTotalSales' : ActorMethod<[bigint], bigint>,
@@ -198,6 +201,7 @@ export interface _SERVICE {
     bigint
   >,
   'releaseVariantLock' : ActorMethod<[bigint], undefined>,
+  'resetVariantState' : ActorMethod<[bigint], undefined>,
   'revokeInvite' : ActorMethod<[bigint], undefined>,
   'saveCallerUserProfile' : ActorMethod<
     [string, string, string, bigint, Role, boolean],

@@ -209,6 +209,11 @@ export const idlService = IDL.Service({
   'getAllProductVariants' : IDL.Func([], [IDL.Vec(ProductVariant)], ['query']),
   'getAllProducts' : IDL.Func([], [IDL.Vec(Product)], ['query']),
   'getBillsForBusiness' : IDL.Func([IDL.Nat], [IDL.Vec(BillToken)], ['query']),
+  'getBillsForSalesman' : IDL.Func(
+      [IDL.Nat, IDL.Nat],
+      [IDL.Vec(BillToken)],
+      ['query'],
+    ),
   'getBusiness' : IDL.Func([IDL.Nat], [Business], ['query']),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
@@ -222,6 +227,12 @@ export const idlService = IDL.Service({
   'getSalesmanActivityLogs' : IDL.Func(
       [IDL.Nat],
       [IDL.Vec(SalesmanActivityLog)],
+      ['query'],
+    ),
+  'getSalesmanBills' : IDL.Func([IDL.Nat], [IDL.Vec(BillToken)], ['query']),
+  'getStaffForBusiness' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Vec(UserProfile)],
       ['query'],
     ),
   'getTimeDiff' : IDL.Func([Time, Time], [IDL.Int], ['query']),
@@ -248,6 +259,7 @@ export const idlService = IDL.Service({
       [],
     ),
   'releaseVariantLock' : IDL.Func([IDL.Nat], [], []),
+  'resetVariantState' : IDL.Func([IDL.Nat], [], []),
   'revokeInvite' : IDL.Func([IDL.Nat], [], []),
   'saveCallerUserProfile' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Nat, Role, IDL.Bool],
@@ -469,6 +481,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(BillToken)],
         ['query'],
       ),
+    'getBillsForSalesman' : IDL.Func(
+        [IDL.Nat, IDL.Nat],
+        [IDL.Vec(BillToken)],
+        ['query'],
+      ),
     'getBusiness' : IDL.Func([IDL.Nat], [Business], ['query']),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
@@ -486,6 +503,12 @@ export const idlFactory = ({ IDL }) => {
     'getSalesmanActivityLogs' : IDL.Func(
         [IDL.Nat],
         [IDL.Vec(SalesmanActivityLog)],
+        ['query'],
+      ),
+    'getSalesmanBills' : IDL.Func([IDL.Nat], [IDL.Vec(BillToken)], ['query']),
+    'getStaffForBusiness' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(UserProfile)],
         ['query'],
       ),
     'getTimeDiff' : IDL.Func([Time, Time], [IDL.Int], ['query']),
@@ -512,6 +535,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'releaseVariantLock' : IDL.Func([IDL.Nat], [], []),
+    'resetVariantState' : IDL.Func([IDL.Nat], [], []),
     'revokeInvite' : IDL.Func([IDL.Nat], [], []),
     'saveCallerUserProfile' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text, IDL.Nat, Role, IDL.Bool],

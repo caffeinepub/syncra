@@ -18,6 +18,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useCreateBillToken, useReleaseVariant } from "../../hooks/useQueries";
+import { mergeVariantNameCache } from "../../utils/profilePhoto";
 
 export interface CartItem {
   variantId: bigint;
@@ -125,6 +126,19 @@ export function BillReviewSheet({
         return;
       }
     }
+
+    // Save variant names to localStorage cache before confirming
+    const variantMap: Record<
+      string,
+      { productName: string; variantName: string }
+    > = {};
+    for (const item of editableItems) {
+      variantMap[item.variantId.toString()] = {
+        productName: item.productName,
+        variantName: item.variantName,
+      };
+    }
+    mergeVariantNameCache(businessId.toString(), variantMap);
 
     const items = editableItems.map((item) => ({
       variantId: item.variantId,

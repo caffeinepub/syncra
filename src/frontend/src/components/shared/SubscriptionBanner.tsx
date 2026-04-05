@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Clock, XCircle } from "lucide-react";
+import { AlertTriangle, Clock, X, XCircle } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import type { Business } from "../../backend.d";
 import { SubscriptionStatus } from "../../backend.d";
@@ -13,6 +14,7 @@ interface Props {
 export function SubscriptionBanner({ business }: Props) {
   const { actor } = useActor();
   const qc = useQueryClient();
+  const [dismissed, setDismissed] = useState(false);
 
   const upgrade = useMutation({
     mutationFn: async () => {
@@ -28,7 +30,7 @@ export function SubscriptionBanner({ business }: Props) {
     },
   });
 
-  if (!business) return null;
+  if (!business || dismissed) return null;
 
   // Trial expiry warning — show yellow slim banner when <= 7 days left
   if (business.subscriptionStatus === SubscriptionStatus.trial) {
@@ -56,15 +58,25 @@ export function SubscriptionBanner({ business }: Props) {
               — Upgrade to keep access.
             </span>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="shrink-0 border-current text-current hover:bg-current/10 h-6 px-2 text-xs"
-            onClick={() => upgrade.mutate()}
-            disabled={upgrade.isPending}
-          >
-            Upgrade
-          </Button>
+          <div className="flex items-center gap-1 shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-current text-current hover:bg-current/10 h-6 px-2 text-xs"
+              onClick={() => upgrade.mutate()}
+              disabled={upgrade.isPending}
+            >
+              Upgrade
+            </Button>
+            <button
+              type="button"
+              onClick={() => setDismissed(true)}
+              className="ml-1 p-0.5 rounded hover:bg-current/10 transition-colors"
+              aria-label="Dismiss"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       );
     }
@@ -72,7 +84,6 @@ export function SubscriptionBanner({ business }: Props) {
   }
 
   if (business.subscriptionStatus === SubscriptionStatus.grace) {
-    // Grace period: 7 days after trial ends
     const trialEndMs = Number(business.trialEndDate) / 1_000_000;
     const graceEndMs = trialEndMs + 7 * 24 * 60 * 60 * 1000;
     const daysLeft = Math.max(
@@ -97,15 +108,25 @@ export function SubscriptionBanner({ business }: Props) {
             remaining before full lockout.
           </span>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          className="shrink-0 border-current text-current hover:bg-current/10 h-7 px-3"
-          onClick={() => upgrade.mutate()}
-          disabled={upgrade.isPending}
-        >
-          Upgrade Now
-        </Button>
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-current text-current hover:bg-current/10 h-7 px-3"
+            onClick={() => upgrade.mutate()}
+            disabled={upgrade.isPending}
+          >
+            Upgrade Now
+          </Button>
+          <button
+            type="button"
+            onClick={() => setDismissed(true)}
+            className="ml-1 p-0.5 rounded hover:bg-current/10 transition-colors"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     );
   }
@@ -126,15 +147,25 @@ export function SubscriptionBanner({ business }: Props) {
             period. Upgrade now.
           </span>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          className="shrink-0 border-current text-current hover:bg-current/10 h-7 px-3"
-          onClick={() => upgrade.mutate()}
-          disabled={upgrade.isPending}
-        >
-          Upgrade Now
-        </Button>
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-current text-current hover:bg-current/10 h-7 px-3"
+            onClick={() => upgrade.mutate()}
+            disabled={upgrade.isPending}
+          >
+            Upgrade Now
+          </Button>
+          <button
+            type="button"
+            onClick={() => setDismissed(true)}
+            className="ml-1 p-0.5 rounded hover:bg-current/10 transition-colors"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     );
   }
