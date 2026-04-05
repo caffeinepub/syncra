@@ -43,7 +43,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => (localStorage.getItem("syncra_theme") as "dark" | "light") ?? "dark",
   );
 
-  // Apply theme class on mount and change
   useEffect(() => {
     if (theme === "light") {
       document.documentElement.classList.add("light");
@@ -55,7 +54,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setTheme = (t: "dark" | "light") => setThemeState(t);
 
-  // Hard 3-second timeout from FIRST mount — prevents infinite "initializing" loops
+  // Hard 3-second timeout — fires once, never resets on isInitializing flickers
   const authTimeoutScheduledRef = useRef(false);
   const [authTimedOut, setAuthTimedOut] = useState(false);
 
@@ -125,8 +124,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     retry: 1,
   });
 
+  // Only clear session on explicit logout (identity gone after being present)
+  const hadIdentityRef = useRef(false);
   useEffect(() => {
-    if (!identity && identityStable) {
+    if (identity) {
+      hadIdentityRef.current = true;
+    } else if (hadIdentityRef.current && identityStable) {
+      // Identity was present before and is now gone — user logged out
       queryClient.removeQueries({ queryKey: ["userProfile"] });
       queryClient.removeQueries({ queryKey: ["business"] });
       localStorage.removeItem("syncra_role");
@@ -151,11 +155,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setView(targetView);
       }
     } else if (!profileResolvedRef.current) {
+      // No profile yet and we've never successfully routed — stay on splash
       if (lastRoutedViewRef.current !== "splash") {
         lastRoutedViewRef.current = "splash";
         setView("splash");
       }
     }
+    // profileResolvedRef guards against re-routing to splash after logout
   }, [
     identity,
     identityStable,
